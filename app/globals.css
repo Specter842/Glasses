@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    background-color: #000000;
+  }
+  body {
+    background-color: #000000;
+    color: #ffffff;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Tabular, mono numerals everywhere a .font-mono element renders. */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Quiet, consistent form controls on the black surface. */
+  input,
+  select,
+  textarea {
+    background-color: #000000;
+    border: 1px solid #242424;
+    color: #ffffff;
+    border-radius: 0.375rem;
+    padding: 0.4rem 0.6rem;
+    outline: none;
+  }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: #2e5bff;
+    box-shadow: 0 0 0 1px #2e5bff;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: #9a9a9a;
+  }
+  /* Dark-friendly native date/time pickers. */
+  input[type="date"],
+  input[type="time"] {
+    color-scheme: dark;
+  }
+}
+
+@layer components {
+  /* Animated strike-through for completed tasks: the line draws across on
+     completion rather than snapping in. */
+  .task-strike {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-position: left center;
+    background-repeat: no-repeat;
+    background-size: 0% 1px;
+    transition: background-size 0.28s ease;
+  }
+  .task-strike[data-done="true"] {
+    background-size: 100% 1px;
+  }
+}
+
+/* Custom scrollbars — subtle, in-theme. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #242424;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
