@@ -31,5 +31,9 @@
 
     <!-- Permissions -->
 
-    <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+      No permissions. Glasses does no networking: the WebView loads its assets
+      from inside the APK and all data lives in on-device storage. INTERNET was
+      only ever needed by the AI features, which have been removed.
+    -->
 </manifest>

@@ -8,7 +8,6 @@ import { computeCourseAttendance, type CourseAttendance } from "@/lib/attendance
 import { todayISO, formatDayLabel, formatTime } from "@/lib/time";
 import { Gauge } from "./Gauge";
 import { AttendanceMark } from "./AttendanceMark";
-import { MarginExplainer } from "./MarginExplainer";
 import { SectionTitle, Card, cx } from "../ui";
 import Link from "next/link";
 
@@ -100,7 +99,6 @@ export function AttendanceScreen() {
       {/* Per-course gauges */}
       <section className="flex flex-col gap-3">
         <h3 className="text-sm font-medium text-text-primary">By course</h3>
-        <MarginExplainer stats={stats} />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {stats.map((s) => (
             <CourseGaugeCard key={s.course.id} stat={s} />

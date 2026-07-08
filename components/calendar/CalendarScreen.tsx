@@ -7,7 +7,6 @@ import { getCourses, getSlots, getTasksSorted } from "@/lib/store";
 import { renderDays } from "@/lib/schedule";
 import { todayISO, weekDates, addDays } from "@/lib/time";
 import { CalendarNav } from "./CalendarNav";
-import { ScheduleCommand } from "./ScheduleCommand";
 import { DayColumn } from "./DayColumn";
 import { TaskPanel } from "../tasks/TaskPanel";
 import { SectionTitle, cx } from "../ui";
@@ -56,7 +55,6 @@ export function CalendarScreen() {
           onSetView={setView}
         />
 
-        <ScheduleCommand />
 
         {needsSetup && (
           <div className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-text-secondary">

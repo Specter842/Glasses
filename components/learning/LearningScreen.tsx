@@ -5,7 +5,6 @@ import { useData } from "../DataProvider";
 import { addGoal, getGoals, getResourcesForGoal } from "@/lib/store";
 import { btn, cx, Card, SectionTitle } from "../ui";
 import { GoalCard } from "./GoalCard";
-import { WeeklySummary } from "./WeeklySummary";
 
 export function LearningScreen() {
   const { db, ready, mutate } = useData();
@@ -69,7 +68,6 @@ export function LearningScreen() {
         </div>
       </Card>
 
-      {goals.length > 0 && <WeeklySummary />}
 
       {/* Goals */}
       {goals.length === 0 ? (
