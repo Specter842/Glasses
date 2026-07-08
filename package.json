@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "cap:sync": "next build && npx cap sync android",
-    "cap:open": "npx cap open android"
+    "cap:open": "npx cap open android",
+    "smoke:gemini": "node scripts/smoke-gemini.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^6.1.0",

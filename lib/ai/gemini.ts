@@ -24,16 +24,52 @@ async function createClient(apiKey: string) {
   return new GoogleGenAI({ apiKey });
 }
 
-/** Friendlier message than the raw SDK error for the two failures users hit. */
+/**
+ * Turn an SDK failure into something honest.
+ *
+ * The SDK throws `ApiError` with a numeric `status`, so branch on that rather
+ * than pattern-matching the message — an earlier version matched /401|403/
+ * anywhere in the text and cheerfully reported "key rejected" for errors that
+ * had nothing to do with the key. Duck-typed so the SDK isn't eagerly imported.
+ */
 function describe(err: unknown): Error {
-  const msg = err instanceof Error ? err.message : String(err);
-  if (/API key not valid|API_KEY_INVALID|401|403/i.test(msg)) {
-    return new Error("That Gemini API key was rejected. Check it in Setup.");
+  const raw = err instanceof Error ? err.message : String(err);
+  const status =
+    typeof (err as { status?: unknown })?.status === "number"
+      ? (err as { status: number }).status
+      : undefined;
+
+  switch (status) {
+    case 400:
+      // Google returns 400 INVALID_ARGUMENT (not 401/403) for a malformed or
+      // wrong key. A *missing* key gives 403 instead — see below.
+      if (/API_KEY_INVALID|API key not valid/i.test(raw)) {
+        return new Error("That Gemini API key isn't valid. Re-copy it in Setup.");
+      }
+      return new Error(`Gemini rejected the request (400). ${raw}`);
+    case 401:
+    case 403:
+      // No key reached Google at all. Historically this meant a fetch shim had
+      // stripped the x-goog-api-key header, not that the key was bad.
+      return new Error(
+        "Gemini got no valid credentials (403). The key may lack access to the " +
+          "Generative Language API.",
+      );
+    case 404:
+      return new Error(`Model "${GEMINI_MODEL}" is not available to this key (404).`);
+    case 429:
+      return new Error("Gemini rate limit or quota reached. Wait a minute, then retry.");
   }
-  if (/429|quota|RESOURCE_EXHAUSTED/i.test(msg)) {
-    return new Error("Gemini rate limit hit. Wait a moment and try again.");
+  if (status && status >= 500) {
+    return new Error(`Gemini is unavailable right now (${status}). Try again shortly.`);
   }
-  return new Error(msg || "The request to Gemini failed.");
+  if (/Failed to fetch|NetworkError|ERR_INTERNET|ERR_NAME_NOT_RESOLVED/i.test(raw)) {
+    return new Error(
+      "No network. The four AI features need internet — everything else in " +
+        "Glasses works offline.",
+    );
+  }
+  return new Error(raw || "The request to Gemini failed.");
 }
 
 /** Constrained JSON output against a JSON Schema. */

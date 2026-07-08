@@ -21,9 +21,13 @@ No accounts, no cloud sync, dark mode only, offline apart from the AI calls.
   schema output + function calling). Calls go straight from the device to
   `generativelanguage.googleapis.com` using the user's own key (`lib/apiKey.ts`,
   stored in Preferences). Never hardcode a key, never add a server.
-  `CapacitorHttp` is enabled in `capacitor.config.ts` so native fetch bypasses
-  WebView CORS. `@google/genai` is lazy-imported in `lib/ai/gemini.ts` (its web
-  build has no `node:` imports, so no webpack shim is needed).
+  `@google/genai` is lazy-imported in `lib/ai/gemini.ts` (its web build has no
+  `node:` imports, so no webpack shim is needed).
+  **Do not enable `CapacitorHttp`.** Its fetch shim reads `options.headers` as a
+  plain object; the SDK passes a `Headers` instance, so `x-goog-api-key` gets
+  dropped and Google returns 403 — which looks exactly like a bad API key. The
+  WebView's own fetch is correct, and Google serves CORS for API-key requests.
+  Smoke-test the whole path without the app: `GEMINI_API_KEY=… npm run smoke:gemini`.
 
 ## Layout
 - `lib/types.ts` — domain types. `CourseType` is `LECTURE | TUTORIAL | PRACTICAL`
