@@ -7,6 +7,7 @@ import { SemesterForm } from "./SemesterForm";
 import { CourseManager } from "./CourseManager";
 import { SlotManager } from "./SlotManager";
 import { DeleteTimetable } from "./DeleteTimetable";
+import { CurrencyForm } from "./CurrencyForm";
 
 export function SetupScreen() {
   const { db, ready } = useData();
@@ -33,6 +34,11 @@ export function SetupScreen() {
           attendance threshold.
         </p>
       </div>
+
+      <section className="flex flex-col gap-4">
+        <SectionTitle>General</SectionTitle>
+        <CurrencyForm />
+      </section>
 
       <section className="flex flex-col gap-4">
         <SectionTitle>Semester</SectionTitle>

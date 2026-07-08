@@ -9,6 +9,11 @@ import type {
   Task,
   Habit,
   HabitLog,
+  Account,
+  Category,
+  Transaction,
+  TxKind,
+  Settings,
   LearningGoal,
   LearningResource,
   GoalStatus,
@@ -35,8 +40,12 @@ export interface DB {
   tasks: Task[];
   habits: Habit[];
   habitLogs: HabitLog[];
+  accounts: Account[];
+  categories: Category[];
+  transactions: Transaction[];
   goals: LearningGoal[];
   resources: LearningResource[];
+  settings: Settings;
   seq: number; // auto-increment id source
 }
 
@@ -51,8 +60,12 @@ export function emptyDB(): DB {
     tasks: [],
     habits: [],
     habitLogs: [],
+    accounts: [],
+    categories: [],
+    transactions: [],
     goals: [],
     resources: [],
+    settings: { currency: "₹" },
     seq: 1,
   };
 }
@@ -64,6 +77,58 @@ function nextId(db: DB): number {
 function nowISO(): string {
   return new Date().toISOString();
 }
+
+/** Starter wallet + categories, so the Money screen is usable on first open. */
+export function seedFinanceDefaults(db: DB) {
+  if (db.accounts.length === 0) {
+    db.accounts.push({
+      id: nextId(db),
+      name: "Cash",
+      color: "#17C964",
+      opening_balance: 0,
+      created_at: nowISO(),
+    });
+  }
+  if (db.categories.length > 0) return;
+  const expense = [
+    "Food",
+    "Groceries",
+    "Transport",
+    "Shopping",
+    "Bills",
+    "Health",
+    "Entertainment",
+    "Education",
+    "Other",
+  ];
+  const income = ["Allowance", "Salary", "Other"];
+  expense.forEach((name, i) =>
+    db.categories.push({
+      id: nextId(db),
+      name,
+      kind: "EXPENSE",
+      color: FINANCE_COLORS[i % FINANCE_COLORS.length],
+    }),
+  );
+  income.forEach((name, i) =>
+    db.categories.push({
+      id: nextId(db),
+      name,
+      kind: "INCOME",
+      color: FINANCE_COLORS[(i + 1) % FINANCE_COLORS.length],
+    }),
+  );
+}
+
+const FINANCE_COLORS = [
+  "#2E5BFF",
+  "#FF2D55",
+  "#17C964",
+  "#5B8CFF",
+  "#E11030",
+  "#37FF8B",
+  "#FFFFFF",
+];
 
 // ---- First-run sample data (mirrors the earlier demo seed) ----
 
@@ -132,13 +197,17 @@ export function seedDB(): DB {
   slot(algo, 5, "09:00", "10:00", "R101");
   slot(os, 5, "10:15", "11:15", "R102");
 
+  seedFinanceDefaults(db);
   return db;
 }
 
 /** Fill in any missing top-level collections from an older persisted shape. */
 export function normalizeDB(input: unknown): DB {
   const base = emptyDB();
-  if (!input || typeof input !== "object") return base;
+  if (!input || typeof input !== "object") {
+    seedFinanceDefaults(base);
+    return base;
+  }
   const d = input as Partial<DB>;
   // Migrate the old two-type model: "LAB" became "PRACTICAL", and courses
   // gained a `code`.
@@ -147,7 +216,7 @@ export function normalizeDB(input: unknown): DB {
     code: c.code ?? null,
     type: ((c.type as string) === "LAB" ? "PRACTICAL" : c.type) as CourseType,
   }));
-  return {
+  const next: DB = {
     semester: d.semester ?? null,
     courses,
     slots: d.slots ?? [],
@@ -158,10 +227,20 @@ export function normalizeDB(input: unknown): DB {
     tasks: d.tasks ?? [],
     habits: d.habits ?? [],
     habitLogs: d.habitLogs ?? [],
+    accounts: d.accounts ?? [],
+    categories: d.categories ?? [],
+    transactions: d.transactions ?? [],
     goals: d.goals ?? [],
     resources: d.resources ?? [],
+    settings: { currency: d.settings?.currency || "₹" },
     seq: d.seq ?? base.seq,
   };
+
+  // A document saved before finance existed has no `categories` key at all.
+  // Give it the starter set. An *empty* array means the user deleted them —
+  // leave that alone.
+  if (d.categories === undefined) seedFinanceDefaults(next);
+  return next;
 }
 
 // ===========================================================================
@@ -581,6 +660,121 @@ export function addEvent(
 
 export function deleteEvent(db: DB, id: number) {
   db.events = db.events.filter((e) => e.id !== id);
+}
+
+// ---- Finance: accounts, categories, transactions ----
+
+export function getAccounts(db: DB): Account[] {
+  return [...db.accounts].sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
+}
+
+export function getCategories(db: DB, kind?: TxKind): Category[] {
+  return db.categories
+    .filter((c) => !kind || c.kind === kind)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Newest first: date desc, then insertion order desc. */
+export function getTransactions(db: DB, monthPrefix?: string): Transaction[] {
+  return db.transactions
+    .filter((t) => !monthPrefix || t.date.startsWith(monthPrefix))
+    .sort((a, b) => (a.date !== b.date ? (a.date < b.date ? 1 : -1) : b.id - a.id));
+}
+
+/** Opening balance plus every income minus every expense on that account. */
+export function accountBalance(db: DB, accountId: number): number {
+  const acct = db.accounts.find((a) => a.id === accountId);
+  if (!acct) return 0;
+  let bal = acct.opening_balance;
+  for (const t of db.transactions) {
+    if (t.account_id !== accountId) continue;
+    bal += t.kind === "INCOME" ? t.amount : -t.amount;
+  }
+  return bal;
+}
+
+/** An account or category can only be deleted once nothing references it. */
+export function accountInUse(db: DB, id: number): boolean {
+  return db.transactions.some((t) => t.account_id === id);
+}
+export function categoryInUse(db: DB, id: number): boolean {
+  return db.transactions.some((t) => t.category_id === id);
+}
+
+export function addAccount(
+  db: DB,
+  input: { name: string; color: string; openingBalance: number },
+) {
+  const name = input.name.trim();
+  if (!name) return;
+  db.accounts.push({
+    id: nextId(db),
+    name,
+    color: input.color,
+    opening_balance: Math.round(input.openingBalance) || 0,
+    created_at: nowISO(),
+  });
+}
+
+export function deleteAccount(db: DB, id: number) {
+  if (accountInUse(db, id)) return; // guarded in the UI too
+  db.accounts = db.accounts.filter((a) => a.id !== id);
+}
+
+export function addCategory(
+  db: DB,
+  input: { name: string; kind: TxKind; color: string },
+) {
+  const name = input.name.trim();
+  if (!name) return;
+  const dupe = db.categories.some(
+    (c) => c.kind === input.kind && c.name.toLowerCase() === name.toLowerCase(),
+  );
+  if (dupe) return;
+  db.categories.push({ id: nextId(db), name, kind: input.kind, color: input.color });
+}
+
+export function deleteCategory(db: DB, id: number) {
+  if (categoryInUse(db, id)) return;
+  db.categories = db.categories.filter((c) => c.id !== id);
+}
+
+export function addTransaction(
+  db: DB,
+  input: {
+    date: string;
+    kind: TxKind;
+    amount: number; // minor units, positive
+    accountId: number;
+    categoryId: number;
+    item: string;
+    note?: string | null;
+  },
+) {
+  const item = input.item.trim();
+  if (!input.date || !item || input.amount <= 0) return;
+  if (!db.accounts.some((a) => a.id === input.accountId)) return;
+  if (!db.categories.some((c) => c.id === input.categoryId)) return;
+  db.transactions.push({
+    id: nextId(db),
+    date: input.date,
+    kind: input.kind,
+    amount: Math.round(input.amount),
+    account_id: input.accountId,
+    category_id: input.categoryId,
+    item,
+    note: input.note?.trim() || null,
+    created_at: nowISO(),
+  });
+}
+
+export function deleteTransaction(db: DB, id: number) {
+  db.transactions = db.transactions.filter((t) => t.id !== id);
+}
+
+export function setCurrency(db: DB, currency: string) {
+  const c = currency.trim();
+  if (c) db.settings.currency = c;
 }
 
 // ---- Learning goals & resources ----

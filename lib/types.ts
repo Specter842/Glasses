@@ -107,6 +107,45 @@ export interface CalendarEvent {
   color: string;
 }
 
+// ---- Finance ----
+//
+// Amounts are integer minor units (paise/cents). Never floats: a spending log
+// that drifts by rounding is worse than no log.
+
+export type TxKind = "EXPENSE" | "INCOME";
+
+/** A wallet: Cash, Bank, UPI… */
+export interface Account {
+  id: number;
+  name: string;
+  color: string;
+  opening_balance: number; // minor units
+  created_at: string;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  kind: TxKind;
+  color: string;
+}
+
+export interface Transaction {
+  id: number;
+  date: string; // YYYY-MM-DD
+  kind: TxKind;
+  amount: number; // minor units, always positive
+  account_id: number;
+  category_id: number;
+  item: string; // "gum" — what the suggestion engine learns from
+  note: string | null;
+  created_at: string;
+}
+
+export interface Settings {
+  currency: string;
+}
+
 export interface LearningGoal {
   id: number;
   title: string;

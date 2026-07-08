@@ -32,11 +32,21 @@ only. **Fully offline: no AI, no network, and no Android permissions at all.**
   `maxMoreSkippable`, `recoverCount`. Formulas are fixed (see Permanent rules).
 - Routes → screens (pages are thin; screens are client components reading
   `useData()`): `/` → `CalendarScreen`, `/attendance` → `AttendanceScreen`,
-  `/habits` → `HabitsScreen`, `/learning` → `LearningScreen`,
-  `/setup` → `SetupScreen`.
+  `/habits` → `HabitsScreen`, `/money` → `MoneyScreen`,
+  `/learning` → `LearningScreen`, `/setup` → `SetupScreen`.
 - `components/BottomNav.tsx` — fixed bottom tab bar, reserved for daily-use
-  screens: Calendar · Attendance · Habits · Learning. **Setup is a gear in the
-  header**, not a tab (5+ tabs don't fit at 375px).
+  screens: Calendar · Attendance · Habits · Money · Learning. **Setup is a gear
+  in the header**, not a tab (six tabs don't fit at 375px).
+- `lib/money.ts` — pure finance helpers. **Amounts are integer minor units
+  (paise) everywhere**; they only become a decimal string at the edge, via
+  `formatMoney`. Never store or add floats. `suggestItems` powers the item
+  autocomplete: it is scoped to the chosen category and ranks by how *often*
+  you've bought a thing, with recency only as a tie-breaker
+  (`score = count + 1/(1 + ageDays/14)`), prefix matches first. Deterministic —
+  no model, no network.
+- Accounts and categories cannot be deleted while a transaction references them
+  (`accountInUse` / `categoryInUse`); the UI disables the control rather than
+  orphaning rows. Currency is a display-only symbol in `db.settings`.
 - Habits: a `HabitLog` row existing for (habit, date) means "done that day" —
   toggling adds/removes the row, so there is no third state. The month grid is
   the input surface (future days locked) and `components/habits/TallyMarks.tsx`

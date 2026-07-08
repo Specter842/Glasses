@@ -27,12 +27,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    loadDB().then((loaded) => {
-      if (active) {
-        setDb(loaded);
-        setReady(true);
-      }
-    });
+    loadDB()
+      .then((loaded) => {
+        if (active) {
+          setDb(loaded);
+          setReady(true);
+        }
+      })
+      .catch((err) => {
+        // Never leave the app on a spinner. Surface the failure and come up
+        // with an empty store rather than hanging on "Loading…" forever.
+        console.error("loadDB failed", err);
+        if (active) {
+          setDb(emptyDB());
+          setReady(true);
+        }
+      });
     return () => {
       active = false;
     };
