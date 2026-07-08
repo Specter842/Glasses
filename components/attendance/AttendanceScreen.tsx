@@ -1,6 +1,7 @@
 "use client";
 
 import { useData } from "../DataProvider";
+import { COURSE_TYPE_SHORT } from "@/lib/types";
 import { getCourses } from "@/lib/store";
 import { pendingAttendance } from "@/lib/schedule";
 import { computeCourseAttendance, type CourseAttendance } from "@/lib/attendance";
@@ -142,7 +143,7 @@ function CourseGaugeCard({ stat }: { stat: CourseAttendance }) {
           {stat.course.name}
         </span>
         <span className="ml-auto rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
-          {stat.course.type === "LAB" ? "Lab" : "Lec"}
+          {COURSE_TYPE_SHORT[stat.course.type]}
         </span>
       </div>
 

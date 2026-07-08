@@ -1,4 +1,4 @@
-package com.productivityos.app;
+package com.glasses.app;
 
 import com.getcapacitor.BridgeActivity;
 

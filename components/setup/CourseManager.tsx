@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Course, CourseType } from "@/lib/types";
+import { COURSE_TYPE_LABELS } from "@/lib/types";
 import { useData } from "../DataProvider";
 import { addCourse, deleteCourse, updateCourseThreshold } from "@/lib/store";
 import { btn, cx, Card } from "../ui";
@@ -72,7 +73,8 @@ export function CourseManager({
               className="text-sm"
             >
               <option value="LECTURE">Lecture</option>
-              <option value="LAB">Lab</option>
+              <option value="TUTORIAL">Tutorial</option>
+              <option value="PRACTICAL">Practical</option>
             </select>
           </label>
           <label className="flex w-24 flex-col gap-1.5">
@@ -150,9 +152,16 @@ function CourseRow({ course }: { course: Course }) {
         className="h-3 w-3 shrink-0 rounded-full"
         style={{ backgroundColor: course.color }}
       />
-      <span className="flex-1 text-sm text-text-primary">{course.name}</span>
-      <span className="rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
-        {course.type === "LAB" ? "Lab" : "Lecture"}
+      <span className="min-w-0 flex-1 truncate text-sm text-text-primary">
+        {course.name}
+      </span>
+      {course.code && (
+        <span className="shrink-0 rounded bg-red-neon/15 px-1.5 py-0.5 font-mono text-[10px] text-red-neon">
+          {course.code}
+        </span>
+      )}
+      <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
+        {COURSE_TYPE_LABELS[course.type]}
       </span>
       <label className="flex items-center gap-1.5">
         <span className="text-[11px] text-text-secondary">min</span>

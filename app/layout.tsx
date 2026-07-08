@@ -18,7 +18,7 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Productivity OS",
+  title: "Glasses",
   description: "Local-first schedule, attendance and learning tracker.",
 };
 
@@ -44,7 +44,7 @@ export default function RootLayout({
                 href="/"
                 className="text-base font-semibold tracking-tight text-text-primary"
               >
-                Productivity<span className="text-accent">OS</span>
+                Glass<span className="text-accent">es</span>
               </Link>
             </header>
 

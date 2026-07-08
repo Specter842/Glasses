@@ -1,6 +1,7 @@
 "use client";
 
 import type { RenderedDay } from "@/lib/types";
+import { COURSE_TYPE_SHORT } from "@/lib/types";
 import { DAY_NAMES_SHORT } from "@/lib/time";
 import { fromISODate, formatTime, todayISO } from "@/lib/time";
 import { cx } from "../ui";
@@ -91,7 +92,7 @@ export function DayColumn({
                       />
                     )}
                     <span className="rounded border border-border px-1 text-[9px] font-semibold uppercase tracking-wide text-text-secondary">
-                      {c.courseType === "LAB" ? "Lab" : "Lec"}
+                      {COURSE_TYPE_SHORT[c.courseType]}
                     </span>
                   </div>
                 </div>

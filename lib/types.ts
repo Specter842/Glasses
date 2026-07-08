@@ -1,6 +1,20 @@
 // Shared domain types. Mirrors the SQLite schema in lib/db.ts.
 
-export type CourseType = "LECTURE" | "LAB";
+// Matches the badges printed on the timetable: Lecture / Tutorial / Practical.
+// ("LAB" was the old name for PRACTICAL — migrated in normalizeDB.)
+export type CourseType = "LECTURE" | "TUTORIAL" | "PRACTICAL";
+
+export const COURSE_TYPE_LABELS: Record<CourseType, string> = {
+  LECTURE: "Lecture",
+  TUTORIAL: "Tutorial",
+  PRACTICAL: "Practical",
+};
+
+export const COURSE_TYPE_SHORT: Record<CourseType, string> = {
+  LECTURE: "Lec",
+  TUTORIAL: "Tut",
+  PRACTICAL: "Prac",
+};
 
 export type ClassStatus = "SCHEDULED" | "ATTENDED" | "ABSENT" | "CANCELLED";
 
@@ -16,10 +30,14 @@ export interface Semester {
 }
 
 // Attendance is tracked per course, each against its own threshold.
+// `code` is the timetable's course code (e.g. UES101T). Each unique code is a
+// separately-tracked course — UES101L (lecture) and UES101P (practical) are two
+// courses, each needing its own threshold.
 export interface Course {
   id: number;
   semester_id: number;
   name: string;
+  code: string | null;
   type: CourseType;
   color: string;
   attendance_threshold_pct: number;

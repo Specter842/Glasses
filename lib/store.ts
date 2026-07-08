@@ -79,6 +79,7 @@ export function seedDB(): DB {
       id,
       semester_id: sem.id,
       name,
+      code: null,
       type,
       color,
       attendance_threshold_pct: threshold,
@@ -89,8 +90,8 @@ export function seedDB(): DB {
   const ds = course("Data Structures", "LECTURE", "#2E5BFF");
   const algo = course("Algorithms", "LECTURE", "#5B8CFF");
   const os = course("Operating Systems", "LECTURE", "#FF2D55");
-  const dsLab = course("DS Lab", "LAB", "#17C964");
-  const osLab = course("OS Lab", "LAB", "#37FF8B");
+  const dsLab = course("DS Lab", "PRACTICAL", "#17C964");
+  const osLab = course("OS Lab", "PRACTICAL", "#37FF8B");
 
   const slot = (
     courseId: number,
@@ -130,9 +131,16 @@ export function normalizeDB(input: unknown): DB {
   const base = emptyDB();
   if (!input || typeof input !== "object") return base;
   const d = input as Partial<DB>;
+  // Migrate the old two-type model: "LAB" became "PRACTICAL", and courses
+  // gained a `code`.
+  const courses = (d.courses ?? []).map((c) => ({
+    ...c,
+    code: c.code ?? null,
+    type: ((c.type as string) === "LAB" ? "PRACTICAL" : c.type) as CourseType,
+  }));
   return {
     semester: d.semester ?? null,
-    courses: d.courses ?? [],
+    courses,
     slots: d.slots ?? [],
     overrides: d.overrides ?? [],
     instances: d.instances ?? [],
@@ -389,6 +397,7 @@ export function addCourse(
     id: nextId(db),
     semester_id: db.semester.id,
     name,
+    code: null,
     type: input.type,
     color: input.color,
     attendance_threshold_pct: Math.round(input.thresholdPct) || 75,
@@ -429,6 +438,95 @@ export function addSlot(
 
 export function deleteSlot(db: DB, id: number) {
   db.slots = db.slots.filter((s) => s.id !== id);
+}
+
+// ---- Whole-timetable replace / delete ----
+//
+// Used by the image importer and the "Delete timetable" button. Both are plain
+// deterministic functions: the AI extracts classes from a screenshot, the user
+// confirms them on a review screen, and only then does this run. Tasks and
+// learning goals are never touched.
+
+/** Colours cycled across imported courses (palette-restricted). */
+const IMPORT_COLORS = [
+  "#2E5BFF",
+  "#17C964",
+  "#FF2D55",
+  "#5B8CFF",
+  "#37FF8B",
+  "#E11030",
+  "#FFFFFF",
+];
+
+/** One class period lifted off the timetable image. */
+export interface ImportedClass {
+  dayOfWeek: number; // 0 = Sun .. 6 = Sat
+  startTime: string; // HH:MM
+  endTime: string; // HH:MM
+  courseName: string;
+  courseCode: string;
+  type: CourseType;
+  location: string;
+}
+
+/** Wipe courses, slots, instances and overrides. Tasks/learning survive. */
+export function clearTimetable(db: DB) {
+  db.courses = [];
+  db.slots = [];
+  db.instances = [];
+  db.overrides = [];
+}
+
+/**
+ * Replace the whole timetable with an imported set of class periods.
+ * Each distinct course code becomes its own Course (so UES101L and UES101P are
+ * tracked separately, each against its own 75% threshold). Every class period
+ * becomes one TimetableSlot — so a day's attendance denominator is simply the
+ * number of periods on that day.
+ *
+ * Destructive: this clears attendance history, because the old class instances
+ * refer to courses that no longer exist.
+ */
+export function replaceTimetable(db: DB, classes: ImportedClass[]) {
+  if (!db.semester) {
+    db.semester = {
+      id: nextId(db),
+      name: "Current semester",
+      start_date: new Date().toISOString().slice(0, 10),
+      end_date: new Date().toISOString().slice(0, 10),
+    };
+  }
+  clearTimetable(db);
+
+  // One course per unique code (falling back to name+type when no code).
+  const byKey = new Map<string, number>();
+  let colorIdx = 0;
+  for (const c of classes) {
+    const key = c.courseCode.trim() || `${c.courseName}|${c.type}`;
+    let courseId = byKey.get(key);
+    if (courseId === undefined) {
+      courseId = nextId(db);
+      db.courses.push({
+        id: courseId,
+        semester_id: db.semester.id,
+        name: c.courseName.trim() || key,
+        code: c.courseCode.trim() || null,
+        type: c.type,
+        color: IMPORT_COLORS[colorIdx % IMPORT_COLORS.length],
+        attendance_threshold_pct: 75,
+      });
+      colorIdx++;
+      byKey.set(key, courseId);
+    }
+    db.slots.push({
+      id: nextId(db),
+      course_id: courseId,
+      day_of_week: c.dayOfWeek,
+      start_time: c.startTime,
+      end_time: c.endTime,
+      location: c.location.trim() || null,
+    });
+  }
 }
 
 // ---- Learning goals & resources ----
