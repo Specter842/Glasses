@@ -7,6 +7,7 @@ import { SemesterForm } from "./SemesterForm";
 import { CourseManager } from "./CourseManager";
 import { SlotManager } from "./SlotManager";
 import { TimetableImport } from "./TimetableImport";
+import { ApiKeyCard } from "../ai/ApiKeyCard";
 
 export function SetupScreen() {
   const { db, ready } = useData();
@@ -32,6 +33,11 @@ export function SetupScreen() {
           threshold.
         </p>
       </div>
+
+      <section className="flex flex-col gap-4">
+        <SectionTitle>AI</SectionTitle>
+        <ApiKeyCard />
+      </section>
 
       <section className="flex flex-col gap-4">
         <SectionTitle>Import timetable</SectionTitle>

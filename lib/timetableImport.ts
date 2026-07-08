@@ -1,17 +1,14 @@
 import type { CourseType } from "./types";
 import type { ImportedClass } from "./store";
+import { generateJson } from "./ai/gemini";
 
-// Reads a timetable screenshot and returns the class periods on it.
+// Phase 4, feature 1: read a timetable screenshot into candidate class periods.
 //
-// This is the one place a model touches the timetable, and it never writes:
-// it returns candidate classes, the user confirms them on a review screen, and
-// only then does the deterministic `replaceTimetable` store function run.
-//
-// There is no server, so the request goes straight from the device to
-// api.anthropic.com with the user's own key. On Android, CapacitorHttp patches
-// fetch to make the request natively, which sidesteps browser CORS.
+// This never writes. It returns candidates; the user confirms them on a review
+// screen, and only then does the deterministic `replaceTimetable` store
+// function run. A silently mis-read cell would corrupt the attendance maths,
+// which is exactly what the review gate exists to prevent.
 
-const MODEL = "claude-opus-4-8";
 const MAX_EDGE = 2000; // downscale huge screenshots before upload
 
 const DAY_NAMES = [
@@ -36,6 +33,7 @@ interface RawClass {
   location: string;
 }
 
+// Kept to the JSON Schema subset Gemini accepts: no additionalProperties.
 const SCHEMA = {
   type: "object",
   properties: {
@@ -46,10 +44,7 @@ const SCHEMA = {
         type: "object",
         properties: {
           day: { type: "string", enum: [...DAY_NAMES] },
-          start_time: {
-            type: "string",
-            description: "24-hour HH:MM, e.g. 09:40 or 14:20.",
-          },
+          start_time: { type: "string", description: "24-hour HH:MM, e.g. 09:40." },
           end_time: {
             type: "string",
             description: "24-hour HH:MM. The start of the next time row.",
@@ -62,7 +57,7 @@ const SCHEMA = {
           type: { type: "string", enum: ["LECTURE", "TUTORIAL", "PRACTICAL"] },
           location: {
             type: "string",
-            description: "Room or lab, e.g. F310 or G317 LAB. Empty string if absent.",
+            description: "Room or lab, e.g. F310. Empty string if absent.",
           },
         },
         required: [
@@ -74,13 +69,11 @@ const SCHEMA = {
           "type",
           "location",
         ],
-        additionalProperties: false,
       },
     },
   },
   required: ["classes"],
-  additionalProperties: false,
-} as const;
+};
 
 const PROMPT = `This image is a weekly class timetable grid. Time slots run down the left column; days run across the top.
 
@@ -98,7 +91,7 @@ Rules:
 - \`course_code\` is the small code pill (e.g. UES101T, UPH013P). Copy it exactly.
 - \`location\` is the room/lab line (e.g. F310, G317 LAB, W/SHOP LAB).
 - Skip empty/greyed cells entirely.
-- Read carefully: it is far worse to invent a class or miss one than to be slow.`;
+- Read carefully: inventing a class or missing one is far worse than being slow.`;
 
 /** Draw the picked image to a canvas, downscale if huge, return base64 + type. */
 export async function fileToImagePayload(
@@ -131,54 +124,19 @@ export async function extractTimetable(
   file: File,
   apiKey: string,
 ): Promise<ImportedClass[]> {
-  if (!apiKey) throw new Error("Add your Anthropic API key first.");
   const { base64, mediaType } = await fileToImagePayload(file);
 
-  // Loaded on demand so the SDK stays out of the initial bundle.
-  const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  const client = new Anthropic({
+  const parsed = await generateJson<{ classes: RawClass[] }>({
     apiKey,
-    // Single-user on-device app: the key is the user's own and never leaves
-    // the device except to Anthropic.
-    dangerouslyAllowBrowser: true,
-  });
-
-  const response = await client.messages.create({
-    model: MODEL,
-    max_tokens: 16000,
-    thinking: { type: "adaptive" },
-    output_config: {
-      effort: "high",
-      format: { type: "json_schema", schema: SCHEMA as unknown as Record<string, unknown> },
-    },
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-          { type: "text", text: PROMPT },
-        ],
-      },
+    schema: SCHEMA,
+    parts: [
+      { inlineData: { mimeType: mediaType, data: base64 } },
+      { text: PROMPT },
     ],
   });
 
-  if (response.stop_reason === "refusal") {
-    throw new Error("The model declined to read this image.");
-  }
-  if (response.stop_reason === "max_tokens") {
-    throw new Error("The timetable was too large to read in one pass.");
-  }
-
-  const text = response.content.find((b) => b.type === "text");
-  if (!text || text.type !== "text") {
+  if (!Array.isArray(parsed.classes)) {
     throw new Error("No timetable data came back. Try a clearer screenshot.");
-  }
-
-  let parsed: { classes: RawClass[] };
-  try {
-    parsed = JSON.parse(text.text);
-  } catch {
-    throw new Error("Could not parse the timetable the model returned.");
   }
 
   return parsed.classes

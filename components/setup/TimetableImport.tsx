@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useData } from "../DataProvider";
 import { clearTimetable, replaceTimetable, type ImportedClass } from "@/lib/store";
 import { extractTimetable } from "@/lib/timetableImport";
-import { getApiKey, setApiKey, maskKey } from "@/lib/apiKey";
+import { useApiKey } from "../ai/useApiKey";
+import { AiError, NeedsKeyHint } from "../ai/ApiKeyCard";
 import { COURSE_TYPE_SHORT } from "@/lib/types";
 import { DAY_NAMES, formatTime } from "@/lib/time";
 import { btn, cx, Card } from "../ui";
@@ -12,10 +13,7 @@ import { btn, cx, Card } from "../ui";
 export function TimetableImport({ hasTimetable }: { hasTimetable: boolean }) {
   const { mutate } = useData();
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const [storedKey, setStoredKey] = useState("");
-  const [keyDraft, setKeyDraft] = useState("");
-  const [editingKey, setEditingKey] = useState(false);
+  const { apiKey, loaded } = useApiKey();
 
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -24,24 +22,13 @@ export function TimetableImport({ hasTimetable }: { hasTimetable: boolean }) {
   const [confirmReplace, setConfirmReplace] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  useEffect(() => {
-    getApiKey().then(setStoredKey);
-  }, []);
-
-  const saveKey = async () => {
-    await setApiKey(keyDraft);
-    setStoredKey(keyDraft.trim());
-    setKeyDraft("");
-    setEditingKey(false);
-  };
-
   const detect = async () => {
     if (!file) return;
     setBusy(true);
     setError("");
     setReview(null);
     try {
-      const classes = await extractTimetable(file, storedKey);
+      const classes = await extractTimetable(file, apiKey);
       if (classes.length === 0) {
         setError("No classes were found in that image.");
       } else {
@@ -71,52 +58,6 @@ export function TimetableImport({ hasTimetable }: { hasTimetable: boolean }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* API key */}
-      <Card className="flex flex-col gap-2 p-4">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-text-secondary">
-            Anthropic API key
-          </span>
-          {storedKey && !editingKey && (
-            <span className="font-mono text-[11px] text-green">
-              {maskKey(storedKey)}
-            </span>
-          )}
-        </div>
-        {storedKey && !editingKey ? (
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setEditingKey(true)}
-              className={cx(btn.base, btn.outline, "px-3 py-1.5 text-xs")}
-            >
-              Change key
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              type="password"
-              value={keyDraft}
-              onChange={(e) => setKeyDraft(e.target.value)}
-              placeholder="sk-ant-…"
-              className="min-w-0 flex-1 font-mono text-sm"
-            />
-            <button
-              type="button"
-              onClick={saveKey}
-              disabled={!keyDraft.trim()}
-              className={cx(btn.base, btn.primary, "shrink-0 px-3 py-1.5")}
-            >
-              Save key
-            </button>
-          </div>
-        )}
-        <p className="text-[11px] leading-relaxed text-text-secondary">
-          Stored on this device only. Used solely to read a timetable image.
-        </p>
-      </Card>
-
       {/* Upload */}
       <Card className="flex flex-col gap-3 p-4">
         <input
@@ -134,22 +75,14 @@ export function TimetableImport({ hasTimetable }: { hasTimetable: boolean }) {
           <button
             type="button"
             onClick={detect}
-            disabled={!file || !storedKey || busy}
+            disabled={!file || !apiKey || busy}
             className={cx(btn.base, btn.primary, "px-3 py-1.5")}
           >
             {busy ? "Reading timetable…" : "Detect classes"}
           </button>
-          {!storedKey && (
-            <span className="text-[11px] text-text-secondary">
-              Add an API key to enable detection.
-            </span>
-          )}
+          {loaded && !apiKey && <NeedsKeyHint what="detect classes from an image" />}
         </div>
-        {error && (
-          <p className="rounded-md border border-red-neon/40 bg-red-neon/10 px-3 py-2 text-xs text-red-neon">
-            {error}
-          </p>
-        )}
+        {error && <AiError message={error} />}
       </Card>
 
       {/* Review before writing anything */}
