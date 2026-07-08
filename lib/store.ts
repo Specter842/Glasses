@@ -5,7 +5,10 @@ import type {
   TimetableSlot,
   DateOverride,
   ClassInstance,
+  CalendarEvent,
   Task,
+  Habit,
+  HabitLog,
   LearningGoal,
   LearningResource,
   GoalStatus,
@@ -28,7 +31,10 @@ export interface DB {
   slots: TimetableSlot[];
   overrides: DateOverride[];
   instances: ClassInstance[];
+  events: CalendarEvent[];
   tasks: Task[];
+  habits: Habit[];
+  habitLogs: HabitLog[];
   goals: LearningGoal[];
   resources: LearningResource[];
   seq: number; // auto-increment id source
@@ -41,7 +47,10 @@ export function emptyDB(): DB {
     slots: [],
     overrides: [],
     instances: [],
+    events: [],
     tasks: [],
+    habits: [],
+    habitLogs: [],
     goals: [],
     resources: [],
     seq: 1,
@@ -144,7 +153,11 @@ export function normalizeDB(input: unknown): DB {
     slots: d.slots ?? [],
     overrides: d.overrides ?? [],
     instances: d.instances ?? [],
+    // Added later; older saved documents won't have these.
+    events: d.events ?? [],
     tasks: d.tasks ?? [],
+    habits: d.habits ?? [],
+    habitLogs: d.habitLogs ?? [],
     goals: d.goals ?? [],
     resources: d.resources ?? [],
     seq: d.seq ?? base.seq,
@@ -451,6 +464,123 @@ export function clearTimetable(db: DB) {
   db.slots = [];
   db.instances = [];
   db.overrides = [];
+}
+
+// ---- Habits ----
+//
+// A HabitLog row existing for (habit, date) means "done that day". Toggling
+// adds or removes the row, so there is no third state to reconcile.
+
+/** Palette-restricted colours offered when creating a habit or event. */
+export const PALETTE = [
+  "#2E5BFF",
+  "#17C964",
+  "#FF2D55",
+  "#5B8CFF",
+  "#37FF8B",
+  "#E11030",
+  "#FFFFFF",
+];
+
+export function getHabits(db: DB): Habit[] {
+  return [...db.habits].sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
+}
+
+/** habit id -> set of ISO dates it was completed on. Built once per render. */
+export function habitLogIndex(db: DB): Map<number, Set<string>> {
+  const map = new Map<number, Set<string>>();
+  for (const log of db.habitLogs) {
+    let set = map.get(log.habit_id);
+    if (!set) {
+      set = new Set();
+      map.set(log.habit_id, set);
+    }
+    set.add(log.date);
+  }
+  return map;
+}
+
+/** How many days in the month containing `monthISO` this habit was done. */
+export function habitMonthCount(
+  dates: Set<string> | undefined,
+  monthPrefix: string,
+): number {
+  if (!dates) return 0;
+  let n = 0;
+  for (const d of dates) if (d.startsWith(monthPrefix)) n++;
+  return n;
+}
+
+export function addHabit(db: DB, input: { name: string; color: string }) {
+  const name = input.name.trim();
+  if (!name) return;
+  db.habits.push({
+    id: nextId(db),
+    name,
+    color: input.color,
+    created_at: nowISO(),
+  });
+}
+
+export function deleteHabit(db: DB, id: number) {
+  db.habits = db.habits.filter((h) => h.id !== id);
+  db.habitLogs = db.habitLogs.filter((l) => l.habit_id !== id);
+}
+
+/** Mark done / not done. Idempotent per (habit, date). */
+export function toggleHabit(db: DB, habitId: number, date: string) {
+  const existing = db.habitLogs.findIndex(
+    (l) => l.habit_id === habitId && l.date === date,
+  );
+  if (existing >= 0) {
+    db.habitLogs.splice(existing, 1);
+  } else {
+    db.habitLogs.push({ id: nextId(db), habit_id: habitId, date });
+  }
+}
+
+// ---- Calendar events ----
+//
+// One-off entries alongside the timetable. Never touch attendance.
+
+export function getEventsForDate(db: DB, date: string): CalendarEvent[] {
+  return db.events.filter((e) => e.date === date).sort(compareEvents);
+}
+
+/** All-day events first, then by start time. */
+export function compareEvents(a: CalendarEvent, b: CalendarEvent): number {
+  if (!a.start_time && !b.start_time) return a.title.localeCompare(b.title);
+  if (!a.start_time) return -1;
+  if (!b.start_time) return 1;
+  return a.start_time.localeCompare(b.start_time);
+}
+
+export function addEvent(
+  db: DB,
+  input: {
+    date: string;
+    title: string;
+    startTime?: string | null;
+    endTime?: string | null;
+    note?: string | null;
+    color: string;
+  },
+) {
+  const title = input.title.trim();
+  if (!title || !input.date) return;
+  db.events.push({
+    id: nextId(db),
+    date: input.date,
+    title,
+    start_time: input.startTime || null,
+    end_time: input.endTime || null,
+    note: input.note?.trim() || null,
+    color: input.color,
+  });
+}
+
+export function deleteEvent(db: DB, id: number) {
+  db.events = db.events.filter((e) => e.id !== id);
 }
 
 // ---- Learning goals & resources ----

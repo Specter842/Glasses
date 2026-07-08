@@ -1,7 +1,9 @@
 "use client";
 
-import type { RenderedDay } from "@/lib/types";
+import type { RenderedDay, CalendarEvent } from "@/lib/types";
 import { COURSE_TYPE_SHORT } from "@/lib/types";
+import { useData } from "../DataProvider";
+import { deleteEvent } from "@/lib/store";
 import { DAY_NAMES_SHORT } from "@/lib/time";
 import { fromISODate, formatTime, todayISO } from "@/lib/time";
 import { cx } from "../ui";
@@ -56,11 +58,13 @@ export function DayColumn({
           </div>
         )}
 
-        {day.classes.length === 0 ? (
+        {day.classes.length === 0 && day.events.length === 0 && (
           <div className="flex flex-1 items-center justify-center px-2 py-4 text-center text-xs text-text-secondary">
-            {day.cleared ? "Cleared" : "No classes"}
+            {day.cleared ? "Cleared" : "Nothing on"}
           </div>
-        ) : (
+        )}
+
+        {day.classes.length > 0 &&
           day.classes.map((c, i) => {
             const cancelled = c.status === "CANCELLED";
             const attended = c.status === "ATTENDED";
@@ -124,8 +128,11 @@ export function DayColumn({
                 )}
               </div>
             );
-          })
-        )}
+          })}
+
+        {day.events.map((e) => (
+          <EventRow key={e.id} event={e} compact={compact} />
+        ))}
       </div>
 
       <div className="border-t border-border px-2 py-1.5">
@@ -136,6 +143,59 @@ export function DayColumn({
           compact={compact}
         />
       </div>
+    </div>
+  );
+}
+
+/**
+ * A custom event. Dashed border and an EVENT tag so it never reads as a class —
+ * events carry no attendance and no Attended/Absent controls.
+ */
+function EventRow({
+  event,
+  compact,
+}: {
+  event: CalendarEvent;
+  compact?: boolean;
+}) {
+  const { mutate } = useData();
+  const timeLabel = event.start_time
+    ? event.end_time
+      ? `${formatTime(event.start_time)}–${formatTime(event.end_time)}`
+      : formatTime(event.start_time)
+    : "All day";
+
+  return (
+    <div
+      className="group rounded border-l-2 border-dashed bg-bg px-2 py-1.5"
+      style={{ borderLeftColor: event.color }}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate text-sm font-medium text-text-primary">
+          {event.title}
+        </span>
+        <div className="flex shrink-0 items-center gap-1">
+          <span className="rounded border border-border px-1 text-[9px] font-semibold uppercase tracking-wide text-text-secondary">
+            Event
+          </span>
+          <button
+            type="button"
+            aria-label={`Delete ${event.title}`}
+            onClick={() => mutate((d) => deleteEvent(d, event.id))}
+            className="rounded px-1 text-text-secondary transition-colors hover:text-red-neon"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+      <div className="mt-0.5 font-mono text-[11px] text-text-secondary">
+        {timeLabel}
+      </div>
+      {event.note && !compact && (
+        <div className="truncate text-[11px] text-text-secondary/70">
+          {event.note}
+        </div>
+      )}
     </div>
   );
 }

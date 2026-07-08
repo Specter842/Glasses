@@ -1,5 +1,5 @@
 import type { RenderedClass, RenderedDay, Course } from "./types";
-import { type DB, getCourseMap, getSlotsForDay } from "./store";
+import { type DB, getCourseMap, getSlotsForDay, getEventsForDate } from "./store";
 import { dayOfWeek, timeToMinutes, addDays } from "./time";
 
 // Turn the recurring TimetableSlot template + any DateOverrides + any
@@ -20,12 +20,14 @@ function sortClasses(a: RenderedClass, b: RenderedClass): number {
 
 export function renderDays(db: DB, dates: string[]): RenderedDay[] {
   if (!db.semester) {
+    // Events don't depend on a semester existing.
     return dates.map((date) => ({
       date,
       dayOfWeek: dayOfWeek(date),
       cleared: false,
       copiedFromDayOfWeek: null,
       classes: [],
+      events: getEventsForDate(db, date),
     }));
   }
 
@@ -86,6 +88,9 @@ export function renderDays(db: DB, dates: string[]): RenderedDay[] {
           ? override.source_day_of_week
           : null,
       classes,
+      // Custom events sit alongside classes but never affect attendance —
+      // clearing a day cancels classes, not events.
+      events: getEventsForDate(db, date),
     };
   });
 }

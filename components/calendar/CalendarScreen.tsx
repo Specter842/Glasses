@@ -8,6 +8,7 @@ import { renderDays } from "@/lib/schedule";
 import { todayISO, weekDates, addDays } from "@/lib/time";
 import { CalendarNav } from "./CalendarNav";
 import { DayColumn } from "./DayColumn";
+import { EventComposer } from "./EventComposer";
 import { TaskPanel } from "../tasks/TaskPanel";
 import { SectionTitle, cx } from "../ui";
 
@@ -87,6 +88,9 @@ export function CalendarScreen() {
             />
           ))}
         </div>
+
+        {/* Week view has no room for this; switch to Day to add an event. */}
+        {view === "day" && <EventComposer date={anchor} />}
       </section>
 
       <section>

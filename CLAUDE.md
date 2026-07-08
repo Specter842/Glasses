@@ -32,9 +32,16 @@ only. **Fully offline: no AI, no network, and no Android permissions at all.**
   `maxMoreSkippable`, `recoverCount`. Formulas are fixed (see Permanent rules).
 - Routes → screens (pages are thin; screens are client components reading
   `useData()`): `/` → `CalendarScreen`, `/attendance` → `AttendanceScreen`,
-  `/learning` → `LearningScreen`, `/setup` → `SetupScreen`.
-- `components/BottomNav.tsx` — fixed bottom tab bar (primary navigation):
-  Calendar · Attendance · Learning · Setup.
+  `/habits` → `HabitsScreen`, `/learning` → `LearningScreen`,
+  `/setup` → `SetupScreen`.
+- `components/BottomNav.tsx` — fixed bottom tab bar, reserved for daily-use
+  screens: Calendar · Attendance · Habits · Learning. **Setup is a gear in the
+  header**, not a tab (5+ tabs don't fit at 375px).
+- Habits: a `HabitLog` row existing for (habit, date) means "done that day" —
+  toggling adds/removes the row, so there is no third state. The month grid is
+  the input surface (future days locked) and `components/habits/TallyMarks.tsx`
+  renders the monthly count as real tally marks: groups of five drawn as four
+  uprights struck through by a diagonal.
 
 ## Build / run
 - `npm run dev` — browser preview (data in localStorage).
@@ -61,6 +68,10 @@ only. **Fully offline: no AI, no network, and no Android permissions at all.**
   ATTENDED or ABSENT; `attended` = ATTENDED; percentage = `attended / held`.
   CANCELLED instances are excluded (a cleared day and a "class cancelled" mark
   both set CANCELLED). Per-course safety-margin formulas are fixed once written.
+- **Custom calendar events never touch attendance.** `CalendarEvent` rows render
+  alongside classes (dashed border, EVENT tag, no Attended/Absent controls), and
+  clearing a day cancels its classes while leaving its events intact. Only the
+  timetable feeds the attendance denominator.
 - **Each timetable grid cell is one class period.** Two consecutive cells of the
   same course are two slots, never merged — a day's attendance denominator is
   simply the number of periods on that day.

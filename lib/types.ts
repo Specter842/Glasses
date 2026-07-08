@@ -78,6 +78,35 @@ export interface Task {
   completed_at: string | null;
 }
 
+/** A habit the user tracks daily. */
+export interface Habit {
+  id: number;
+  name: string;
+  color: string;
+  created_at: string;
+}
+
+/** Presence of a row means the habit was completed on that date. */
+export interface HabitLog {
+  id: number;
+  habit_id: number;
+  date: string; // YYYY-MM-DD
+}
+
+/**
+ * A one-off calendar entry that isn't a class: a deadline, a trip, an exam.
+ * Never counted toward attendance — the timetable owns that.
+ */
+export interface CalendarEvent {
+  id: number;
+  date: string; // YYYY-MM-DD
+  title: string;
+  start_time: string | null; // HH:MM, null = all-day
+  end_time: string | null;
+  note: string | null;
+  color: string;
+}
+
 export interface LearningGoal {
   id: number;
   title: string;
@@ -117,4 +146,5 @@ export interface RenderedDay {
   cleared: boolean;
   copiedFromDayOfWeek: number | null;
   classes: RenderedClass[];
+  events: CalendarEvent[];
 }

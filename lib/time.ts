@@ -81,6 +81,41 @@ export function formatLongDate(iso: string): string {
   });
 }
 
+const MONTHS_LONG = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+] as const;
+
+/** First day of the month containing `iso`. */
+export function startOfMonth(iso: string): string {
+  const d = fromISODate(iso);
+  return toISODate(new Date(d.getFullYear(), d.getMonth(), 1));
+}
+
+/** Add n months. Anchors to the 1st, so it never spills into the next month. */
+export function addMonths(iso: string, n: number): string {
+  const d = fromISODate(iso);
+  return toISODate(new Date(d.getFullYear(), d.getMonth() + n, 1));
+}
+
+/** How many days the month containing `iso` has. */
+export function daysInMonth(iso: string): number {
+  const d = fromISODate(iso);
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+}
+
+/** The ISO date for `day` within the month containing `iso`. */
+export function dayInMonth(iso: string, day: number): string {
+  const d = fromISODate(iso);
+  return toISODate(new Date(d.getFullYear(), d.getMonth(), day));
+}
+
+/** e.g. "July 2026". */
+export function formatMonthYear(iso: string): string {
+  const d = fromISODate(iso);
+  return `${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 /** Convert "HH:MM" to minutes since midnight for sorting. */
 export function timeToMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
