@@ -1,5 +1,9 @@
 # Glasses — project guide
 
+> New here? `README.md` is the human overview; `docs/BRIEFING.md` is the full
+> context to paste into a fresh AI chat. This file is the terse permanent rules,
+> auto-loaded every session — keep it lean.
+
 Single-user, local-first **Android app** (`com.glasses.app`): schedule/timetable,
 attendance tracker and learning tracker. No accounts, no cloud sync, dark mode
 only. **Fully offline: no AI, no network, and no Android permissions at all.**
