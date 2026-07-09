@@ -47,6 +47,15 @@ only. **Fully offline: no AI, no network, and no Android permissions at all.**
 - Accounts and categories cannot be deleted while a transaction references them
   (`accountInUse` / `categoryInUse`); the UI disables the control rather than
   orphaning rows. Currency is a display-only symbol in `db.settings`.
+- Budgets are one monthly limit per expense category (`setBudget` upserts;
+  amount ≤ 0 removes). `budgetStatuses` flags near (≥80%) / over; the Money
+  screen warns for the current month only.
+- **Recurring rules materialise into real transactions** via `runRecurring`,
+  called once by `DataProvider` after load. It is deterministic and idempotent:
+  `occurrencesBetween` only generates dates in `(last_run, today]`, monthly days
+  clamp to the month length (31 → Feb 28), and `last_run` advances every run —
+  so opening the app repeatedly never double-charges. The recurrence math is
+  unit-tested; keep it that way if you touch it.
 - Habits: a `HabitLog` row existing for (habit, date) means "done that day" —
   toggling adds/removes the row, so there is no third state. The month grid is
   the input surface (future days locked) and `components/habits/TallyMarks.tsx`

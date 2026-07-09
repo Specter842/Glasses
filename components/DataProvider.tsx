@@ -7,8 +7,9 @@ import {
   useEffect,
   useState,
 } from "react";
-import { type DB, emptyDB } from "@/lib/store";
+import { type DB, emptyDB, runRecurring } from "@/lib/store";
 import { loadDB, saveDB, resetStore } from "@/lib/persist";
+import { todayISO } from "@/lib/time";
 
 interface DataContextValue {
   db: DB;
@@ -29,10 +30,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     loadDB()
       .then((loaded) => {
-        if (active) {
-          setDb(loaded);
-          setReady(true);
-        }
+        if (!active) return;
+        // Catch up any recurring transactions due since the app was last open.
+        // Idempotent, so running on every launch is safe.
+        const created = runRecurring(loaded, todayISO());
+        if (created > 0) void saveDB(loaded);
+        setDb(loaded);
+        setReady(true);
       })
       .catch((err) => {
         // Never leave the app on a spinner. Surface the failure and come up

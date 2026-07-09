@@ -13,12 +13,17 @@ import type {
   Category,
   Transaction,
   TxKind,
+  Budget,
+  Recurring,
+  RecurFrequency,
   Settings,
   LearningGoal,
   LearningResource,
   GoalStatus,
 } from "./types";
 import { dayOfWeek } from "./time";
+// money.ts imports only the DB *type* from here, so this is not a runtime cycle.
+import { materialiseRecurring } from "./money";
 
 // ---------------------------------------------------------------------------
 // On-device data store.
@@ -43,6 +48,8 @@ export interface DB {
   accounts: Account[];
   categories: Category[];
   transactions: Transaction[];
+  budgets: Budget[];
+  recurring: Recurring[];
   goals: LearningGoal[];
   resources: LearningResource[];
   settings: Settings;
@@ -63,6 +70,8 @@ export function emptyDB(): DB {
     accounts: [],
     categories: [],
     transactions: [],
+    budgets: [],
+    recurring: [],
     goals: [],
     resources: [],
     settings: { currency: "₹" },
@@ -230,6 +239,8 @@ export function normalizeDB(input: unknown): DB {
     accounts: d.accounts ?? [],
     categories: d.categories ?? [],
     transactions: d.transactions ?? [],
+    budgets: d.budgets ?? [],
+    recurring: d.recurring ?? [],
     goals: d.goals ?? [],
     resources: d.resources ?? [],
     settings: { currency: d.settings?.currency || "₹" },
@@ -775,6 +786,100 @@ export function deleteTransaction(db: DB, id: number) {
 export function setCurrency(db: DB, currency: string) {
   const c = currency.trim();
   if (c) db.settings.currency = c;
+}
+
+// ---- Budgets (a monthly limit per expense category) ----
+
+export function getBudget(db: DB, categoryId: number): Budget | undefined {
+  return db.budgets.find((b) => b.category_id === categoryId);
+}
+
+/** Upsert: one budget per category. amount <= 0 removes it. */
+export function setBudget(db: DB, categoryId: number, amount: number) {
+  const rounded = Math.round(amount);
+  db.budgets = db.budgets.filter((b) => b.category_id !== categoryId);
+  if (rounded > 0) {
+    db.budgets.push({ id: nextId(db), category_id: categoryId, amount: rounded });
+  }
+}
+
+// ---- Recurring transactions ----
+//
+// A rule generates real Transactions. Materialisation is deterministic and
+// idempotent: `runRecurring` only ever creates occurrences strictly after
+// `last_run`, so it can run on every app open without double-charging.
+
+export function getRecurring(db: DB): Recurring[] {
+  return [...db.recurring].sort((a, b) =>
+    a.created_at < b.created_at ? -1 : 1,
+  );
+}
+
+export function addRecurring(
+  db: DB,
+  input: {
+    kind: TxKind;
+    amount: number;
+    accountId: number;
+    categoryId: number;
+    item: string;
+    note?: string | null;
+    frequency: RecurFrequency;
+    dayOfMonth?: number | null;
+    dayOfWeek?: number | null;
+    startDate: string;
+  },
+) {
+  const item = input.item.trim();
+  if (!item || input.amount <= 0 || !input.startDate) return;
+  if (!db.accounts.some((a) => a.id === input.accountId)) return;
+  if (!db.categories.some((c) => c.id === input.categoryId)) return;
+  db.recurring.push({
+    id: nextId(db),
+    kind: input.kind,
+    amount: Math.round(input.amount),
+    account_id: input.accountId,
+    category_id: input.categoryId,
+    item,
+    note: input.note?.trim() || null,
+    frequency: input.frequency,
+    day_of_month: input.frequency === "MONTHLY" ? (input.dayOfMonth ?? 1) : null,
+    day_of_week: input.frequency === "WEEKLY" ? (input.dayOfWeek ?? 0) : null,
+    start_date: input.startDate,
+    last_run: null,
+    active: true,
+    created_at: nowISO(),
+  });
+}
+
+export function setRecurringActive(db: DB, id: number, active: boolean) {
+  const r = db.recurring.find((x) => x.id === id);
+  if (r) r.active = active;
+}
+
+export function deleteRecurring(db: DB, id: number) {
+  db.recurring = db.recurring.filter((r) => r.id !== id);
+}
+
+/**
+ * Materialise all due recurring occurrences up to `today` into real
+ * transactions, advancing each rule's `last_run`. Idempotent per day. Returns
+ * the count created. The DataProvider calls this once after load.
+ */
+export function runRecurring(db: DB, today: string): number {
+  return materialiseRecurring(db.recurring, today, (tx) => {
+    db.transactions.push({
+      id: nextId(db),
+      date: tx.date,
+      kind: tx.kind,
+      amount: tx.amount,
+      account_id: tx.account_id,
+      category_id: tx.category_id,
+      item: tx.item,
+      note: tx.note,
+      created_at: nowISO(),
+    });
+  });
 }
 
 // ---- Learning goals & resources ----

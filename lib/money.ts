@@ -1,5 +1,6 @@
-import type { Transaction, TxKind } from "./types";
+import type { Transaction, TxKind, Recurring, Budget } from "./types";
 import type { DB } from "./store";
+import { addDays, addMonths, dayInMonth, daysInMonth, todayISO } from "./time";
 
 // Pure money helpers. Amounts are integer minor units (paise) everywhere;
 // they only become a decimal string at the edge, for display.
@@ -129,3 +130,125 @@ export function suggestItems(
     .slice(0, limit)
     .map((t) => t.label);
 }
+
+// ---- Budgets ----
+
+export interface BudgetStatus {
+  categoryId: number;
+  limit: number; // minor units, per month
+  spent: number;
+  ratio: number; // spent / limit, >1 when over
+  over: boolean;
+  near: boolean; // >= 80% and not yet over
+}
+
+const NEAR_THRESHOLD = 0.8;
+
+/** Status for every budgeted category, given that month's expense totals. */
+export function budgetStatuses(
+  budgets: Budget[],
+  spentByCategory: Map<number, number>,
+): BudgetStatus[] {
+  return budgets.map((b) => {
+    const spent = spentByCategory.get(b.category_id) ?? 0;
+    const ratio = b.amount > 0 ? spent / b.amount : 0;
+    return {
+      categoryId: b.category_id,
+      limit: b.amount,
+      spent,
+      ratio,
+      over: spent > b.amount,
+      near: ratio >= NEAR_THRESHOLD && spent <= b.amount,
+    };
+  });
+}
+
+// ---- Recurring materialisation ----
+
+/** The occurrence dates for a rule in (afterISO, throughISO]. */
+export function occurrencesBetween(
+  rule: {
+    frequency: Recurring["frequency"];
+    start_date: string;
+    day_of_month: number | null;
+    day_of_week: number | null;
+  },
+  afterISO: string | null,
+  throughISO: string,
+): string[] {
+  const out: string[] = [];
+  // Never before the rule's start, never at/before what we've already run.
+  let cursor = rule.start_date;
+  if (afterISO && afterISO >= cursor) cursor = addDays(afterISO, 1);
+  if (cursor > throughISO) return out;
+
+  if (rule.frequency === "DAILY") {
+    for (let d = cursor; d <= throughISO; d = addDays(d, 1)) out.push(d);
+    return out;
+  }
+
+  if (rule.frequency === "WEEKLY") {
+    const target = rule.day_of_week ?? 0;
+    for (let d = cursor; d <= throughISO; d = addDays(d, 1)) {
+      if (new Date(`${d}T00:00:00`).getDay() === target) out.push(d);
+    }
+    return out;
+  }
+
+  // MONTHLY: the Nth day of each month from the cursor's month onward, clamped
+  // to that month's length so "31" still fires in February.
+  const target = rule.day_of_month ?? 1;
+  let month = cursor.slice(0, 7) + "-01";
+  while (month <= throughISO) {
+    const day = Math.min(target, daysInMonth(month));
+    const occ = dayInMonth(month, day);
+    if (occ >= cursor && occ <= throughISO) out.push(occ);
+    month = addMonths(month, 1);
+  }
+  return out;
+}
+
+/**
+ * Mutating: turn every due occurrence into a real Transaction and advance
+ * `last_run`. Returns how many were created. Safe to call on every app open —
+ * occurrences already past `last_run` are never re-created.
+ *
+ * `push` is injected so this stays independent of store internals; the store's
+ * `runRecurring` wrapper supplies it.
+ */
+export function materialiseRecurring(
+  recurring: Recurring[],
+  today: string,
+  push: (tx: {
+    date: string;
+    kind: TxKind;
+    amount: number;
+    account_id: number;
+    category_id: number;
+    item: string;
+    note: string | null;
+  }) => void,
+): number {
+  let created = 0;
+  for (const r of recurring) {
+    if (!r.active) continue;
+    const dates = occurrencesBetween(r, r.last_run, today);
+    for (const date of dates) {
+      push({
+        date,
+        kind: r.kind,
+        amount: r.amount,
+        account_id: r.account_id,
+        category_id: r.category_id,
+        item: r.item,
+        note: r.note,
+      });
+      created++;
+    }
+    // Advance even with zero occurrences, so the window never re-scans old dates.
+    if (r.last_run === null || today > r.last_run) r.last_run = today;
+  }
+  return created;
+}
+
+export { todayISO };

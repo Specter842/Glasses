@@ -8,11 +8,13 @@ import {
   getAccounts,
   getTransactions,
 } from "@/lib/store";
-import { categoryTotals, formatMoney, monthTotals } from "@/lib/money";
+import { budgetStatuses, categoryTotals, formatMoney, monthTotals } from "@/lib/money";
 import { addMonths, formatDayLabel, formatMonthYear, startOfMonth, todayISO } from "@/lib/time";
 import { cx, Card, SectionTitle } from "../ui";
 import { TransactionForm } from "./TransactionForm";
 import { ManageFinance } from "./ManageFinance";
+import { BudgetManager } from "./BudgetManager";
+import { RecurringManager } from "./RecurringManager";
 
 export function MoneyScreen() {
   const { db, ready, mutate } = useData();
@@ -39,6 +41,14 @@ export function MoneyScreen() {
     .filter((r) => r.category)
     .sort((a, b) => b.total - a.total);
   const biggest = breakdown[0]?.total ?? 0;
+
+  // Budget warnings for the *current* month only (past months are history).
+  const isThisMonth = monthPrefix === startOfMonth(todayISO()).slice(0, 7);
+  const alerts = isThisMonth
+    ? budgetStatuses(db.budgets, spendByCategory)
+        .filter((s) => s.near || s.over)
+        .sort((a, b) => b.ratio - a.ratio)
+    : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -67,6 +77,34 @@ export function MoneyScreen() {
           tone={totals.net < 0 ? "red" : totals.net > 0 ? "green" : "muted"}
         />
       </Card>
+
+      {/* Budget warnings — current month only */}
+      {alerts.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          {alerts.map((s) => {
+            const cat = categoryById.get(s.categoryId);
+            return (
+              <div
+                key={s.categoryId}
+                className={cx(
+                  "flex items-center gap-2 rounded-md border px-3 py-2 text-xs",
+                  s.over
+                    ? "border-red-neon/40 bg-red-neon/10 text-red-neon"
+                    : "border-[#FFB020]/40 bg-[#FFB020]/10 text-[#FFB020]",
+                )}
+              >
+                <span className="flex-1">
+                  {s.over ? "Over budget" : "Nearing budget"} on{" "}
+                  <span className="font-medium">{cat?.name ?? "—"}</span>
+                </span>
+                <span className="shrink-0 font-mono">
+                  {formatMoney(s.spent, currency)} / {formatMoney(s.limit, currency)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Account balances */}
       {accounts.length > 0 && (
@@ -178,6 +216,8 @@ export function MoneyScreen() {
         )}
       </section>
 
+      <BudgetManager />
+      <RecurringManager />
       <ManageFinance />
     </div>
   );

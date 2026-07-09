@@ -142,6 +142,37 @@ export interface Transaction {
   created_at: string;
 }
 
+/** A monthly spending limit on one expense category. */
+export interface Budget {
+  id: number;
+  category_id: number;
+  amount: number; // minor units, per month
+}
+
+export type RecurFrequency = "DAILY" | "WEEKLY" | "MONTHLY";
+
+/**
+ * A rule that materialises real Transactions. `last_run` is the high-water mark:
+ * occurrences are only ever generated after it, so opening the app twice in a
+ * day can never double-charge.
+ */
+export interface Recurring {
+  id: number;
+  kind: TxKind;
+  amount: number;
+  account_id: number;
+  category_id: number;
+  item: string;
+  note: string | null;
+  frequency: RecurFrequency;
+  day_of_month: number | null; // MONTHLY; clamped to the month's length
+  day_of_week: number | null; // WEEKLY; 0 = Sun
+  start_date: string;
+  last_run: string | null;
+  active: boolean;
+  created_at: string;
+}
+
 export interface Settings {
   currency: string;
 }
