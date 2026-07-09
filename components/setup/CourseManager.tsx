@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Course, CourseType } from "@/lib/types";
 import { COURSE_TYPE_LABELS } from "@/lib/types";
+import { Select } from "../Select";
 import { useData } from "../DataProvider";
 import { addCourse, deleteCourse, updateCourseThreshold } from "@/lib/store";
 import { btn, cx, Card } from "../ui";
@@ -65,18 +66,20 @@ export function CourseManager({
               className="w-full text-sm"
             />
           </label>
-          <label className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-secondary">Type</span>
-            <select
+            <Select
+              ariaLabel="Course type"
+              className="min-w-[8rem]"
               value={type}
-              onChange={(e) => setType(e.target.value as CourseType)}
-              className="text-sm"
-            >
-              <option value="LECTURE">Lecture</option>
-              <option value="TUTORIAL">Tutorial</option>
-              <option value="PRACTICAL">Practical</option>
-            </select>
-          </label>
+              onChange={(v) => setType(v as CourseType)}
+              options={[
+                { value: "LECTURE", label: "Lecture" },
+                { value: "TUTORIAL", label: "Tutorial" },
+                { value: "PRACTICAL", label: "Practical" },
+              ]}
+            />
+          </div>
           <label className="flex w-24 flex-col gap-1.5">
             <span className="text-xs font-medium text-text-secondary">
               Min %

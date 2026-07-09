@@ -7,6 +7,7 @@ import { addTransaction, getAccounts, getCategories } from "@/lib/store";
 import { parseAmount, suggestItems } from "@/lib/money";
 import { todayISO } from "@/lib/time";
 import { btn, cx, Card } from "../ui";
+import { Select } from "../Select";
 import { ItemSuggest } from "./ItemSuggest";
 
 export function TransactionForm() {
@@ -115,20 +116,19 @@ export function TransactionForm() {
         </label>
       </div>
 
-      <label className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         <span className="text-[11px] text-text-secondary">Category</span>
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(Number(e.target.value))}
-          className="text-sm"
-        >
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </label>
+        <Select
+          ariaLabel="Category"
+          value={String(categoryId)}
+          onChange={(v) => setCategoryId(Number(v))}
+          options={categories.map((c) => ({
+            value: String(c.id),
+            label: c.name,
+            color: c.color,
+          }))}
+        />
+      </div>
 
       <label className="flex flex-col gap-1">
         <span className="text-[11px] text-text-secondary">Item</span>
@@ -136,20 +136,19 @@ export function TransactionForm() {
       </label>
 
       <div className="flex gap-2">
-        <label className="flex flex-1 flex-col gap-1">
+        <div className="flex flex-1 flex-col gap-1">
           <span className="text-[11px] text-text-secondary">Account</span>
-          <select
-            value={accountId}
-            onChange={(e) => setAccountId(Number(e.target.value))}
-            className="w-full text-sm"
-          >
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          <Select
+            ariaLabel="Account"
+            value={String(accountId)}
+            onChange={(v) => setAccountId(Number(v))}
+            options={accounts.map((a) => ({
+              value: String(a.id),
+              label: a.name,
+              color: a.color,
+            }))}
+          />
+        </div>
         <label className="flex flex-1 flex-col gap-1">
           <span className="text-[11px] text-text-secondary">Note</span>
           <input

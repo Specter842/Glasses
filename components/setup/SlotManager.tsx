@@ -7,6 +7,7 @@ import { addSlot, deleteSlot } from "@/lib/store";
 import { DAY_NAMES } from "@/lib/time";
 import { formatTime } from "@/lib/time";
 import { btn, cx, Card } from "../ui";
+import { Select } from "../Select";
 
 export function SlotManager({
   courses,
@@ -49,36 +50,30 @@ export function SlotManager({
     <div className="flex flex-col gap-4">
       <Card className="p-4">
         <div className="flex flex-wrap items-end gap-3">
-          <label className="flex min-w-[160px] flex-1 flex-col gap-1.5">
+          <div className="flex min-w-[160px] flex-1 flex-col gap-1.5">
             <span className="text-xs font-medium text-text-secondary">
               Course
             </span>
-            <select
-              value={courseId}
-              onChange={(e) => setCourseId(Number(e.target.value))}
-              className="text-sm"
-            >
-              {courses.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1.5">
+            <Select
+              ariaLabel="Course"
+              value={String(courseId)}
+              onChange={(v) => setCourseId(Number(v))}
+              options={courses.map((c) => ({
+                value: String(c.id),
+                label: c.name,
+                color: c.color,
+              }))}
+            />
+          </div>
+          <div className="flex min-w-[8rem] flex-col gap-1.5">
             <span className="text-xs font-medium text-text-secondary">Day</span>
-            <select
-              value={dayOfWeek}
-              onChange={(e) => setDayOfWeek(Number(e.target.value))}
-              className="text-sm"
-            >
-              {DAY_NAMES.map((d, i) => (
-                <option key={i} value={i}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </label>
+            <Select
+              ariaLabel="Day of week"
+              value={String(dayOfWeek)}
+              onChange={(v) => setDayOfWeek(Number(v))}
+              options={DAY_NAMES.map((d, i) => ({ value: String(i), label: d }))}
+            />
+          </div>
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-text-secondary">Start</span>
             <input

@@ -4,6 +4,7 @@ import { useData } from "../DataProvider";
 import { clearSchedule, duplicateDay, resetDay } from "@/lib/store";
 import { DAY_NAMES, DAY_NAMES_SHORT } from "@/lib/time";
 import { cx } from "../ui";
+import { Select } from "../Select";
 
 export function DayActions({
   date,
@@ -49,19 +50,18 @@ export function DayActions({
           Reset
         </button>
       )}
-      <select
-        aria-label="Copy another day onto this date"
+      <Select
+        size="sm"
+        className="min-w-[5.5rem]"
+        ariaLabel="Copy another day onto this date"
+        placeholder="Copy…"
         value=""
-        onChange={(e) => onCopy(e.target.value)}
-        className="rounded border border-border bg-bg px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-text-secondary"
-      >
-        <option value="">Copy…</option>
-        {DAY_NAMES.map((name, i) => (
-          <option key={i} value={i}>
-            {compact ? DAY_NAMES_SHORT[i] : name}
-          </option>
-        ))}
-      </select>
+        onChange={onCopy}
+        options={DAY_NAMES.map((name, i) => ({
+          value: String(i),
+          label: compact ? DAY_NAMES_SHORT[i] : name,
+        }))}
+      />
     </div>
   );
 }

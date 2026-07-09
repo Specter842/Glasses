@@ -14,6 +14,7 @@ import {
 import { formatMoney, parseAmount } from "@/lib/money";
 import { DAY_NAMES_SHORT, todayISO } from "@/lib/time";
 import { btn, cx, Card } from "../ui";
+import { Select } from "../Select";
 
 const FREqS: RecurFrequency[] = ["DAILY", "WEEKLY", "MONTHLY"];
 
@@ -154,24 +155,30 @@ export function RecurringManager() {
           </div>
 
           <div className="flex gap-2">
-            <select value={categoryId} onChange={(e) => setCategoryId(Number(e.target.value))} className="flex-1 text-sm">
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <select value={accountId} onChange={(e) => setAccountId(Number(e.target.value))} className="flex-1 text-sm">
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
+            <Select
+              ariaLabel="Category"
+              className="flex-1"
+              value={String(categoryId)}
+              onChange={(v) => setCategoryId(Number(v))}
+              options={categories.map((c) => ({ value: String(c.id), label: c.name, color: c.color }))}
+            />
+            <Select
+              ariaLabel="Account"
+              className="flex-1"
+              value={String(accountId)}
+              onChange={(v) => setAccountId(Number(v))}
+              options={accounts.map((a) => ({ value: String(a.id), label: a.name, color: a.color }))}
+            />
           </div>
 
           <div className="flex gap-2">
-            <select value={frequency} onChange={(e) => setFrequency(e.target.value as RecurFrequency)} className="flex-1 text-sm">
-              {FREqS.map((f) => (
-                <option key={f} value={f}>{f.charAt(0) + f.slice(1).toLowerCase()}</option>
-              ))}
-            </select>
+            <Select
+              ariaLabel="Frequency"
+              className="flex-1"
+              value={frequency}
+              onChange={(v) => setFrequency(v as RecurFrequency)}
+              options={FREqS.map((f) => ({ value: f, label: f.charAt(0) + f.slice(1).toLowerCase() }))}
+            />
             {frequency === "MONTHLY" && (
               <input
                 type="number"
@@ -184,11 +191,13 @@ export function RecurringManager() {
               />
             )}
             {frequency === "WEEKLY" && (
-              <select value={dayOfWeek} onChange={(e) => setDayOfWeek(e.target.value)} aria-label="Day of week" className="flex-1 text-sm">
-                {DAY_NAMES_SHORT.map((d, i) => (
-                  <option key={i} value={i}>{d}</option>
-                ))}
-              </select>
+              <Select
+                ariaLabel="Day of week"
+                className="flex-1"
+                value={dayOfWeek}
+                onChange={setDayOfWeek}
+                options={DAY_NAMES_SHORT.map((d, i) => ({ value: String(i), label: d }))}
+              />
             )}
           </div>
 
