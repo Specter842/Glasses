@@ -54,6 +54,13 @@ only. **Fully offline: no AI, no network, and no Android permissions at all.**
 - Budgets are one monthly limit per expense category (`setBudget` upserts;
   amount ≤ 0 removes). `budgetStatuses` flags near (≥80%) / over; the Money
   screen warns for the current month only.
+- **Wishlist** (`/money/wishlist`, an internal page reached via the Spending /
+  Wishlist toggle) is a plain to-buy list — name, Need/Want, optional estimate,
+  bought flag. It never touches balances; buying stays a manual transaction.
+- **Done tasks are purged daily.** `purgeOldDoneTasks` (run once by
+  `DataProvider` after load, next to `runRecurring`) drops tasks whose
+  `completed_at` date is before today, so a task ticked off today stays visible
+  until the next new day. Idempotent.
 - **Recurring rules materialise into real transactions** via `runRecurring`,
   called once by `DataProvider` after load. It is deterministic and idempotent:
   `occurrencesBetween` only generates dates in `(last_run, today]`, monthly days

@@ -66,7 +66,10 @@ are current.
   groups of five as four uprights struck by a diagonal).
 - **Money** (`components/money/`): `MoneyScreen`, `TransactionForm` (with
   `ItemSuggest` autocomplete), `ManageFinance` (accounts + categories),
-  `BudgetManager`, `RecurringManager`. Pure logic in `lib/money.ts`.
+  `BudgetManager`, `RecurringManager`, and a `WishlistScreen` at
+  `/money/wishlist` (reached via the `MoneyTabs` Spending/Wishlist toggle — an
+  internal page, not a bottom tab). Pure logic in `lib/money.ts`. All dropdowns
+  use the app-rendered `components/Select.tsx`, not native `<select>`.
 - **Learning** (`components/learning/`): goals + resources, one-tap status
   cycling, progress as a plain ratio.
 - **Setup** (`components/setup/`): currency, semester, courses, weekly timetable
@@ -83,7 +86,9 @@ are current.
 
 Dates are local `YYYY-MM-DD` strings; times `HH:MM`; `day_of_week` 0=Sun..6=Sat
 (see `lib/time.ts`). `CourseType` = LECTURE | TUTORIAL | PRACTICAL (old `LAB`
-migrates to PRACTICAL in `normalizeDB`).
+migrates to PRACTICAL in `normalizeDB`). Also `wishlist` (WishlistItem). Done
+tasks are auto-purged the day after completion (`purgeOldDoneTasks`, run on load
+alongside `runRecurring`).
 
 ## 5. Permanent rules (non-negotiable)
 

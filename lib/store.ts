@@ -16,6 +16,7 @@ import type {
   Budget,
   Recurring,
   RecurFrequency,
+  WishlistItem,
   Settings,
   LearningGoal,
   LearningResource,
@@ -50,6 +51,7 @@ export interface DB {
   transactions: Transaction[];
   budgets: Budget[];
   recurring: Recurring[];
+  wishlist: WishlistItem[];
   goals: LearningGoal[];
   resources: LearningResource[];
   settings: Settings;
@@ -72,6 +74,7 @@ export function emptyDB(): DB {
     transactions: [],
     budgets: [],
     recurring: [],
+    wishlist: [],
     goals: [],
     resources: [],
     settings: { currency: "₹" },
@@ -241,6 +244,7 @@ export function normalizeDB(input: unknown): DB {
     transactions: d.transactions ?? [],
     budgets: d.budgets ?? [],
     recurring: d.recurring ?? [],
+    wishlist: d.wishlist ?? [],
     goals: d.goals ?? [],
     resources: d.resources ?? [],
     settings: { currency: d.settings?.currency || "₹" },
@@ -460,6 +464,21 @@ export function toggleTask(db: DB, id: number, done: boolean) {
 
 export function deleteTask(db: DB, id: number) {
   db.tasks = db.tasks.filter((t) => t.id !== id);
+}
+
+/**
+ * Drop tasks that were completed on a previous day. A task ticked off today
+ * stays visible for the rest of today, then is purged at the next new day.
+ * Called once by DataProvider after load; returns how many were removed.
+ */
+export function purgeOldDoneTasks(db: DB, today: string): number {
+  const before = db.tasks.length;
+  db.tasks = db.tasks.filter((t) => {
+    if (t.done !== 1) return true;
+    const completedDay = (t.completed_at ?? "").slice(0, 10);
+    return !completedDay || completedDay >= today; // keep today's; drop older
+  });
+  return before - db.tasks.length;
 }
 
 // ---- Semester / courses / slots ----
@@ -786,6 +805,51 @@ export function deleteTransaction(db: DB, id: number) {
 export function setCurrency(db: DB, currency: string) {
   const c = currency.trim();
   if (c) db.settings.currency = c;
+}
+
+// ---- Wishlist ----
+//
+// Things to buy. Purely a list — buying is still a manual transaction; nothing
+// here touches balances.
+
+/** Outstanding first; within each group NEED before WANT, then oldest first. */
+export function getWishlist(db: DB): WishlistItem[] {
+  const rank = (w: WishlistItem) =>
+    (w.bought ? 2 : 0) + (w.priority === "NEED" ? 0 : 1);
+  return [...db.wishlist].sort(
+    (a, b) => rank(a) - rank(b) || (a.created_at < b.created_at ? -1 : 1),
+  );
+}
+
+export function addWishlistItem(
+  db: DB,
+  input: {
+    name: string;
+    amount?: number | null;
+    priority: WishlistItem["priority"];
+    note?: string | null;
+  },
+) {
+  const name = input.name.trim();
+  if (!name) return;
+  db.wishlist.push({
+    id: nextId(db),
+    name,
+    amount: input.amount && input.amount > 0 ? Math.round(input.amount) : null,
+    priority: input.priority,
+    note: input.note?.trim() || null,
+    bought: false,
+    created_at: nowISO(),
+  });
+}
+
+export function toggleWishlistBought(db: DB, id: number) {
+  const w = db.wishlist.find((x) => x.id === id);
+  if (w) w.bought = !w.bought;
+}
+
+export function deleteWishlistItem(db: DB, id: number) {
+  db.wishlist = db.wishlist.filter((w) => w.id !== id);
 }
 
 // ---- Budgets (a monthly limit per expense category) ----

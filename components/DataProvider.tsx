@@ -7,7 +7,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import { type DB, emptyDB, runRecurring } from "@/lib/store";
+import { type DB, emptyDB, runRecurring, purgeOldDoneTasks } from "@/lib/store";
 import { loadDB, saveDB, resetStore } from "@/lib/persist";
 import { todayISO } from "@/lib/time";
 
@@ -31,10 +31,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     loadDB()
       .then((loaded) => {
         if (!active) return;
-        // Catch up any recurring transactions due since the app was last open.
-        // Idempotent, so running on every launch is safe.
-        const created = runRecurring(loaded, todayISO());
-        if (created > 0) void saveDB(loaded);
+        // Daily housekeeping on open, both idempotent:
+        // • post any recurring transactions due since last open
+        // • drop tasks completed on a previous day
+        const today = todayISO();
+        const changed =
+          runRecurring(loaded, today) + purgeOldDoneTasks(loaded, today);
+        if (changed > 0) void saveDB(loaded);
         setDb(loaded);
         setReady(true);
       })

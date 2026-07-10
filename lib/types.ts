@@ -173,6 +173,17 @@ export interface Recurring {
   created_at: string;
 }
 
+/** Something the user wants or needs to buy. Not a transaction until bought. */
+export interface WishlistItem {
+  id: number;
+  name: string;
+  amount: number | null; // estimated cost, minor units
+  priority: "NEED" | "WANT";
+  note: string | null;
+  bought: boolean;
+  created_at: string;
+}
+
 export interface Settings {
   currency: string;
 }

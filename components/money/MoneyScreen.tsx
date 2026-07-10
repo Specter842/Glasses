@@ -15,6 +15,7 @@ import { TransactionForm } from "./TransactionForm";
 import { ManageFinance } from "./ManageFinance";
 import { BudgetManager } from "./BudgetManager";
 import { RecurringManager } from "./RecurringManager";
+import { MoneyTabs } from "./MoneyTabs";
 
 export function MoneyScreen() {
   const { db, ready, mutate } = useData();
@@ -66,6 +67,8 @@ export function MoneyScreen() {
           </MonthArrow>
         </div>
       </div>
+
+      <MoneyTabs />
 
       {/* Month totals */}
       <Card className="grid grid-cols-3 gap-2 p-3">
