@@ -43,10 +43,10 @@ are current.
     hangs on "Loading…").
 - **Screens**: routes are thin (`app/<x>/page.tsx`), each rendering a client
   screen component that reads `useData()`. Routes: `/`→CalendarScreen,
-  `/attendance`→AttendanceScreen, `/habits`→HabitsScreen, `/money`→MoneyScreen,
+  `/attendance`→AttendanceScreen, `/tracker`→TrackerScreen, `/money`→MoneyScreen,
   `/learning`→LearningScreen, `/setup`→SetupScreen.
 - **Navigation**: `components/BottomNav.tsx` fixed bottom tab bar —
-  Calendar · Attendance · Habits · Money · Learning. **Setup is a gear in the
+  Calendar · Attendance · Tracker · Money · Learning. **Setup is a gear in the
   header**, not a tab (six tabs don't fit at 375px).
 
 ## 3. Feature inventory
@@ -55,15 +55,17 @@ are current.
   `renderDays(db, dates)` in `lib/schedule.ts` (the single source of truth for
   "what's on" a date). Clear day / copy-a-weekday-onto-a-date / reset via
   `DayActions`. One-off `CalendarEvent`s via `EventComposer`, shown with a
-  dashed border + EVENT tag; they never affect attendance. Tasks via
-  `TaskPanel`.
+  dashed border + EVENT tag; they never affect attendance.
 - **Attendance** (`components/attendance/`): per-course marking
   (Attended/Absent/Cancelled) from a queue and inline in the day view. Math in
   `lib/attendance.ts` (`computeCourseAttendance`: held/attended/%,
   `maxMoreSkippable`, `recoverCount`). Signature arc gauge in `Gauge.tsx`.
-- **Habits** (`components/habits/`): `HabitsScreen` (Today strip + tappable
-  month grid, future days locked) and `TallyMarks.tsx` (SVG tally marks —
-  groups of five as four uprights struck by a diagonal).
+- **Tracker** (`components/tracker/`): `TrackerScreen` with a segmented switch
+  over three panels — **Habits** (`HabitsPanel`: Today strip + tappable month
+  grid, future days locked; `components/habits/TallyMarks.tsx` renders SVG tally
+  marks — groups of five as four uprights struck by a diagonal), **To-do** (the
+  shared `TaskPanel`, moved here off the Calendar) and **Notes** (`NotesPanel`:
+  free-text jottings, add/edit/delete, newest first).
 - **Money** (`components/money/`): `MoneyScreen`, `TransactionForm` (with
   `ItemSuggest` autocomplete), `ManageFinance` (accounts + categories),
   `BudgetManager`, `RecurringManager`, and a `WishlistScreen` at
@@ -80,9 +82,9 @@ are current.
 `semester`, `courses` (`code`, `type`, per-course `attendance_threshold_pct`),
 `slots` (timetable), `overrides` (CLEARED / COPY_FROM_DAY), `instances`
 (materialized class occurrences with status), `events` (CalendarEvent), `tasks`,
-`habits`, `habitLogs` (row exists = done that day), `accounts`, `categories`
-(EXPENSE|INCOME), `transactions`, `budgets`, `recurring`, `goals`, `resources`,
-`settings` (`currency`).
+`habits`, `habitLogs` (row exists = done that day), `notes` (free-text
+jottings), `accounts`, `categories` (EXPENSE|INCOME), `transactions`, `budgets`,
+`recurring`, `goals`, `resources`, `settings` (`currency`).
 
 Dates are local `YYYY-MM-DD` strings; times `HH:MM`; `day_of_week` 0=Sun..6=Sat
 (see `lib/time.ts`). `CourseType` = LECTURE | TUTORIAL | PRACTICAL (old `LAB`

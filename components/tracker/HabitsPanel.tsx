@@ -20,21 +20,15 @@ import {
   startOfMonth,
   todayISO,
 } from "@/lib/time";
-import { btn, cx, Card, SectionTitle } from "../ui";
-import { TallyMarks } from "./TallyMarks";
+import { btn, cx, Card } from "../ui";
+import { TallyMarks } from "../habits/TallyMarks";
 
-export function HabitsScreen() {
-  const { db, ready, mutate } = useData();
+export function HabitsPanel() {
+  const { db, mutate } = useData();
   const today = todayISO();
   const [month, setMonth] = useState(() => startOfMonth(today));
   const [name, setName] = useState("");
   const [color, setColor] = useState(PALETTE[0]);
-
-  if (!ready) {
-    return (
-      <p className="py-16 text-center text-sm text-text-secondary">Loading…</p>
-    );
-  }
 
   const habits = getHabits(db);
   const logs = habitLogIndex(db);
@@ -51,8 +45,6 @@ export function HabitsScreen() {
 
   return (
     <div className="flex flex-col gap-8">
-      <SectionTitle>Habits</SectionTitle>
-
       {/* Add */}
       <Card className="flex flex-col gap-3 p-3">
         <input

@@ -54,9 +54,9 @@ const TABS: Tab[] = [
     ),
   },
   {
-    href: "/habits",
-    label: "Habits",
-    isActive: (p) => p.startsWith("/habits"),
+    href: "/tracker",
+    label: "Tracker",
+    isActive: (p) => p.startsWith("/tracker"),
     icon: () => (
       <svg
         viewBox="0 0 24 24"
@@ -68,7 +68,9 @@ const TABS: Tab[] = [
         className="h-6 w-6"
       >
         <rect x="3.5" y="3.5" width="17" height="17" rx="4" />
-        <path d="M8 12.5 L11 15.5 L16.5 9" />
+        <path d="M8 8.5h8" />
+        <path d="M8 12h8" />
+        <path d="M8 15.5h5" />
       </svg>
     ),
   },

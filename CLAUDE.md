@@ -36,10 +36,10 @@ only. **Fully offline: no AI, no network, and no Android permissions at all.**
   `maxMoreSkippable`, `recoverCount`. Formulas are fixed (see Permanent rules).
 - Routes → screens (pages are thin; screens are client components reading
   `useData()`): `/` → `CalendarScreen`, `/attendance` → `AttendanceScreen`,
-  `/habits` → `HabitsScreen`, `/money` → `MoneyScreen`,
+  `/tracker` → `TrackerScreen`, `/money` → `MoneyScreen`,
   `/learning` → `LearningScreen`, `/setup` → `SetupScreen`.
 - `components/BottomNav.tsx` — fixed bottom tab bar, reserved for daily-use
-  screens: Calendar · Attendance · Habits · Money · Learning. **Setup is a gear
+  screens: Calendar · Attendance · Tracker · Money · Learning. **Setup is a gear
   in the header**, not a tab (six tabs don't fit at 375px).
 - `lib/money.ts` — pure finance helpers. **Amounts are integer minor units
   (paise) everywhere**; they only become a decimal string at the edge, via
@@ -67,11 +67,19 @@ only. **Fully offline: no AI, no network, and no Android permissions at all.**
   clamp to the month length (31 → Feb 28), and `last_run` advances every run —
   so opening the app repeatedly never double-charges. The recurrence math is
   unit-tested; keep it that way if you touch it.
+- **Tracker** (`/tracker`, `TrackerScreen`) is a single screen with a segmented
+  switch over three panels in `components/tracker/`: **Habits** (`HabitsPanel`),
+  **To-do** (the shared `TaskPanel`, moved here off the Calendar) and **Notes**
+  (`NotesPanel`). Each panel reads `useData()` directly; the screen owns the
+  `ready` gate and the toggle.
 - Habits: a `HabitLog` row existing for (habit, date) means "done that day" —
   toggling adds/removes the row, so there is no third state. The month grid is
   the input surface (future days locked) and `components/habits/TallyMarks.tsx`
   renders the monthly count as real tally marks: groups of five drawn as four
   uprights struck through by a diagonal.
+- Notes are plain free-text jottings (`Note` = id + text + created_at) with no
+  dates or status. `addNote` / `updateNote` / `deleteNote` / `getNotes` in
+  `lib/store.ts`; newest first. They never touch any other collection.
 
 ## Build / run
 - `npm run dev` — browser preview (data in localStorage).

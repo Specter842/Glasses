@@ -21,6 +21,7 @@ import type {
   LearningGoal,
   LearningResource,
   GoalStatus,
+  Note,
 } from "./types";
 import { dayOfWeek } from "./time";
 // money.ts imports only the DB *type* from here, so this is not a runtime cycle.
@@ -54,6 +55,7 @@ export interface DB {
   wishlist: WishlistItem[];
   goals: LearningGoal[];
   resources: LearningResource[];
+  notes: Note[];
   settings: Settings;
   seq: number; // auto-increment id source
 }
@@ -77,6 +79,7 @@ export function emptyDB(): DB {
     wishlist: [],
     goals: [],
     resources: [],
+    notes: [],
     settings: { currency: "₹" },
     seq: 1,
   };
@@ -247,6 +250,7 @@ export function normalizeDB(input: unknown): DB {
     wishlist: d.wishlist ?? [],
     goals: d.goals ?? [],
     resources: d.resources ?? [],
+    notes: d.notes ?? [],
     settings: { currency: d.settings?.currency || "₹" },
     seq: d.seq ?? base.seq,
   };
@@ -1025,4 +1029,32 @@ export function deleteResource(db: DB, id: number) {
   db.resources = db.resources.filter((r) => r.id !== id);
 }
 
-export type { LearningGoal, LearningResource };
+// ---- Notes ----
+//
+// Plain free-text jottings that live in the Tracker. No dates, no status —
+// just a text body you add, edit, or delete.
+
+export function getNotes(db: DB): Note[] {
+  // Newest first.
+  return [...db.notes].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+}
+
+export function addNote(db: DB, input: { text: string }) {
+  const text = input.text.trim();
+  if (!text) return;
+  db.notes.push({ id: nextId(db), text, created_at: nowISO() });
+}
+
+export function updateNote(db: DB, input: { id: number; text: string }) {
+  const n = db.notes.find((x) => x.id === input.id);
+  if (!n) return;
+  const text = input.text.trim();
+  if (!text) return;
+  n.text = text;
+}
+
+export function deleteNote(db: DB, id: number) {
+  db.notes = db.notes.filter((n) => n.id !== id);
+}
+
+export type { LearningGoal, LearningResource, Note };

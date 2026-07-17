@@ -3,13 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useData } from "../DataProvider";
-import { getCourses, getSlots, getTasksSorted } from "@/lib/store";
+import { getCourses, getSlots } from "@/lib/store";
 import { renderDays } from "@/lib/schedule";
 import { todayISO, weekDates, addDays } from "@/lib/time";
 import { CalendarNav } from "./CalendarNav";
 import { DayColumn } from "./DayColumn";
 import { EventComposer } from "./EventComposer";
-import { TaskPanel } from "../tasks/TaskPanel";
 import { SectionTitle, cx } from "../ui";
 
 export function CalendarScreen() {
@@ -20,7 +19,6 @@ export function CalendarScreen() {
 
   const courses = getCourses(db);
   const slots = getSlots(db);
-  const tasks = getTasksSorted(db);
 
   const dates = view === "week" ? weekDates(anchor) : [anchor];
   const days = renderDays(db, dates);
@@ -91,10 +89,6 @@ export function CalendarScreen() {
 
         {/* Week view has no room for this; switch to Day to add an event. */}
         {view === "day" && <EventComposer date={anchor} />}
-      </section>
-
-      <section>
-        <TaskPanel tasks={tasks} />
       </section>
     </div>
   );

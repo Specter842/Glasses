@@ -205,6 +205,12 @@ export interface LearningResource {
   note: string | null;
 }
 
+export interface Note {
+  id: number;
+  text: string;
+  created_at: string;
+}
+
 // A class as rendered on the calendar for a specific date. May be backed by a
 // concrete ClassInstance row, or be a "virtual" render straight off the
 // recurring TimetableSlot template (no instance materialized yet).

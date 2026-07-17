@@ -11,14 +11,14 @@ your device.
 
 - **Calendar** — a week/day timetable rendered from your recurring class
   schedule. Clear a day, copy one day's classes onto another, and add one-off
-  events (deadlines, exams, trips) that sit alongside classes. Plus a simple
-  task list.
+  events (deadlines, exams, trips) that sit alongside classes.
 - **Attendance** — tracked **per course**, each against its own threshold
   (default 75%). Mark each class Attended / Absent / Cancelled. A signature arc
   gauge shows, per course, how many classes you can still miss — or how many
   you must attend in a row to recover.
-- **Habits** — a Today strip for quick daily ticking and a tappable month grid.
-  Each month's completions are drawn as real **tally marks**.
+- **Tracker** — three panels in one screen: **Habits** (a Today strip for quick
+  daily ticking and a tappable month grid, with each month's completions drawn
+  as real **tally marks**), a **To-do** list, and free-text **Notes**.
 - **Money** — a wallet manager: accounts, income/expense with categories,
   monthly totals and per-category spending. Logging an item suggests things
   you've bought before **in that category**. Monthly budgets with near/over
@@ -68,7 +68,7 @@ node scripts/make-assets.mjs && npx capacitor-assets generate --android
 
 ```
 app/            Next.js routes (thin pages → screen components)
-components/     UI, grouped by feature (calendar, attendance, habits, money, learning, setup)
+components/     UI, grouped by feature (calendar, attendance, tracker, habits, tasks, money, learning, setup)
 lib/            Domain logic — types, on-device store, schedule/attendance/money math
 android/        Capacitor-generated native project
 assets/         App icon / splash source images
