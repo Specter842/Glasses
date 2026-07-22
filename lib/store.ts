@@ -23,7 +23,7 @@ import type {
   GoalStatus,
   Note,
 } from "./types";
-import { dayOfWeek } from "./time";
+import { dayOfWeek, toISODate } from "./time";
 // money.ts imports only the DB *type* from here, so this is not a runtime cycle.
 import { materialiseRecurring } from "./money";
 
@@ -468,6 +468,26 @@ export function toggleTask(db: DB, id: number, done: boolean) {
 
 export function deleteTask(db: DB, id: number) {
   db.tasks = db.tasks.filter((t) => t.id !== id);
+}
+
+/**
+ * How long an undated task may sit before it counts as overdue. A task with no
+ * deadline still shouldn't linger forever, so it ages out on its own.
+ */
+export const NO_DEADLINE_GRACE_HOURS = 36;
+
+/**
+ * Overdue means: still open, and either past its due date, or — with no due
+ * date — created more than NO_DEADLINE_GRACE_HOURS ago. A dated task is only
+ * late once the due day has fully passed, so "due today" reads as on time.
+ * Done tasks are never overdue.
+ */
+export function isTaskOverdue(task: Task, now: Date = new Date()): boolean {
+  if (task.done === 1) return false;
+  if (task.due_date !== null) return task.due_date < toISODate(now);
+  const created = new Date(task.created_at).getTime();
+  if (Number.isNaN(created)) return false; // undateable row: never nag
+  return now.getTime() - created > NO_DEADLINE_GRACE_HOURS * 3600_000;
 }
 
 /**

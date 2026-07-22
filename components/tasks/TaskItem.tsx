@@ -3,8 +3,8 @@
 import { useState } from "react";
 import type { Task } from "@/lib/types";
 import { useData } from "../DataProvider";
-import { toggleTask, deleteTask, updateTask } from "@/lib/store";
-import { formatDayLabel, todayISO } from "@/lib/time";
+import { toggleTask, deleteTask, updateTask, isTaskOverdue } from "@/lib/store";
+import { formatDayLabel } from "@/lib/time";
 import { btn, cx } from "../ui";
 
 export function TaskItem({ task }: { task: Task }) {
@@ -14,8 +14,7 @@ export function TaskItem({ task }: { task: Task }) {
   const [title, setTitle] = useState(task.title);
   const [due, setDue] = useState(task.due_date ?? "");
 
-  const overdue =
-    !done && task.due_date !== null && task.due_date < todayISO();
+  const overdue = isTaskOverdue(task);
 
   const saveEdit = () => {
     if (!title.trim()) return;
@@ -102,7 +101,7 @@ export function TaskItem({ task }: { task: Task }) {
         >
           {task.title}
         </span>
-        {task.due_date && (
+        {task.due_date ? (
           <span
             className={cx(
               "ml-2 font-mono text-[11px]",
@@ -112,6 +111,12 @@ export function TaskItem({ task }: { task: Task }) {
             {overdue ? "overdue · " : "due "}
             {formatDayLabel(task.due_date)}
           </span>
+        ) : (
+          overdue && (
+            <span className="ml-2 font-mono text-[11px] text-red-neon">
+              overdue
+            </span>
+          )
         )}
       </div>
 
