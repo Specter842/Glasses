@@ -1,13 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { forwardRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { Task } from "@/lib/types";
 import { useData } from "../DataProvider";
 import { toggleTask, deleteTask, updateTask, isTaskOverdue } from "@/lib/store";
 import { formatDayLabel } from "@/lib/time";
 import { btn, cx } from "../ui";
 
-export function TaskItem({ task }: { task: Task }) {
+interface DragHandleProps {
+  onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>) => void;
+  onPointerMove: (e: ReactPointerEvent<HTMLButtonElement>) => void;
+  onPointerUp: (e: ReactPointerEvent<HTMLButtonElement>) => void;
+  onPointerCancel: (e: ReactPointerEvent<HTMLButtonElement>) => void;
+}
+
+export const TaskItem = forwardRef<
+  HTMLDivElement,
+  {
+    task: Task;
+    style?: React.CSSProperties;
+    dragging?: boolean;
+    dragHandleProps?: DragHandleProps;
+  }
+>(function TaskItem({ task, style, dragging, dragHandleProps }, ref) {
   const { mutate } = useData();
   const done = task.done === 1;
   const [editing, setEditing] = useState(false);
@@ -24,7 +39,10 @@ export function TaskItem({ task }: { task: Task }) {
 
   if (editing) {
     return (
-      <div className="flex flex-col gap-2 rounded-md border border-border bg-surface p-2">
+      <div
+        ref={ref}
+        className="flex flex-col gap-2 rounded-md border border-border bg-surface p-2"
+      >
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -63,8 +81,32 @@ export function TaskItem({ task }: { task: Task }) {
 
   return (
     <div
-      className="group flex items-center gap-3 rounded-md border border-transparent px-2 py-2 transition-colors hover:border-border hover:bg-surface"
+      ref={ref}
+      style={style}
+      className={cx(
+        "group flex items-center gap-3 rounded-md border px-2 py-2 transition-colors",
+        dragging
+          ? "relative z-10 border-border bg-surface shadow-lg"
+          : "border-transparent hover:border-border hover:bg-surface",
+      )}
     >
+      {dragHandleProps && (
+        <button
+          type="button"
+          aria-label="Drag to reorder"
+          className="-ml-1 flex shrink-0 touch-none items-center justify-center rounded p-1 text-text-secondary active:cursor-grabbing"
+          {...dragHandleProps}
+        >
+          <svg viewBox="0 0 12 20" className="h-4 w-3" fill="currentColor">
+            <circle cx="3" cy="3" r="1.3" />
+            <circle cx="9" cy="3" r="1.3" />
+            <circle cx="3" cy="10" r="1.3" />
+            <circle cx="9" cy="10" r="1.3" />
+            <circle cx="3" cy="17" r="1.3" />
+            <circle cx="9" cy="17" r="1.3" />
+          </svg>
+        </button>
+      )}
       <button
         type="button"
         role="checkbox"
@@ -139,4 +181,4 @@ export function TaskItem({ task }: { task: Task }) {
       </div>
     </div>
   );
-}
+});

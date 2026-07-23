@@ -76,6 +76,7 @@ export interface Task {
   done: number; // 0 | 1 (SQLite boolean)
   created_at: string;
   completed_at: string | null;
+  sort_order: number; // manual drag-ranked priority, ascending
 }
 
 /** A habit the user tracks daily. */

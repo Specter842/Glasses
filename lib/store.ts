@@ -216,6 +216,27 @@ export function seedDB(): DB {
   return db;
 }
 
+/** Assign sort_order to tasks saved before manual drag-ranking existed, using
+ *  their old implicit order (open-before-done, then due date, then creation
+ *  time) so upgrading doesn't visibly reshuffle anyone's list. */
+function migrateTaskOrder(tasks: Task[]): Task[] {
+  const ranked = [...tasks].sort((a, b) => {
+    if (a.done !== b.done) return a.done - b.done;
+    const ad = a.due_date === null ? 1 : 0;
+    const bd = b.due_date === null ? 1 : 0;
+    if (ad !== bd) return ad - bd;
+    if (a.due_date && b.due_date && a.due_date !== b.due_date)
+      return a.due_date < b.due_date ? -1 : 1;
+    return a.created_at < b.created_at ? -1 : 1;
+  });
+  const orderOf = new Map(ranked.map((t, i) => [t.id, i]));
+  return tasks.map((t) => ({
+    ...t,
+    sort_order:
+      typeof t.sort_order === "number" ? t.sort_order : orderOf.get(t.id)!,
+  }));
+}
+
 /** Fill in any missing top-level collections from an older persisted shape. */
 export function normalizeDB(input: unknown): DB {
   const base = emptyDB();
@@ -231,6 +252,10 @@ export function normalizeDB(input: unknown): DB {
     code: c.code ?? null,
     type: ((c.type as string) === "LAB" ? "PRACTICAL" : c.type) as CourseType,
   }));
+  const rawTasks = (d.tasks ?? []) as Task[];
+  const tasks = rawTasks.some((t) => typeof t.sort_order !== "number")
+    ? migrateTaskOrder(rawTasks)
+    : rawTasks;
   const next: DB = {
     semester: d.semester ?? null,
     courses,
@@ -239,7 +264,7 @@ export function normalizeDB(input: unknown): DB {
     instances: d.instances ?? [],
     // Added later; older saved documents won't have these.
     events: d.events ?? [],
-    tasks: d.tasks ?? [],
+    tasks,
     habits: d.habits ?? [],
     habitLogs: d.habitLogs ?? [],
     accounts: d.accounts ?? [],
@@ -300,15 +325,7 @@ export function getInstancesForDate(db: DB, date: string): ClassInstance[] {
 }
 
 export function getTasksSorted(db: DB): Task[] {
-  return [...db.tasks].sort((a, b) => {
-    if (a.done !== b.done) return a.done - b.done;
-    const ad = a.due_date === null ? 1 : 0;
-    const bd = b.due_date === null ? 1 : 0;
-    if (ad !== bd) return ad - bd;
-    if (a.due_date && b.due_date && a.due_date !== b.due_date)
-      return a.due_date < b.due_date ? -1 : 1;
-    return a.created_at < b.created_at ? -1 : 1;
-  });
+  return [...db.tasks].sort((a, b) => a.sort_order - b.sort_order);
 }
 
 // ===========================================================================
@@ -438,6 +455,17 @@ export function addTask(
     done: 0,
     created_at: nowISO(),
     completed_at: null,
+    sort_order: db.tasks.reduce((max, t) => Math.max(max, t.sort_order), -1) + 1,
+  });
+}
+
+/** Apply a new manual priority order, as drag-ranked by the user. Only tasks
+ *  present in `orderedIds` are touched, so open and done lists can be
+ *  reordered independently without disturbing each other. */
+export function reorderTasks(db: DB, orderedIds: number[]) {
+  orderedIds.forEach((id, i) => {
+    const t = db.tasks.find((x) => x.id === id);
+    if (t) t.sort_order = i;
   });
 }
 
