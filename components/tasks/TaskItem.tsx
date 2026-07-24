@@ -12,6 +12,7 @@ interface DragHandleProps {
   onPointerMove: (e: ReactPointerEvent<HTMLButtonElement>) => void;
   onPointerUp: (e: ReactPointerEvent<HTMLButtonElement>) => void;
   onPointerCancel: (e: ReactPointerEvent<HTMLButtonElement>) => void;
+  onLostPointerCapture: (e: ReactPointerEvent<HTMLButtonElement>) => void;
 }
 
 export const TaskItem = forwardRef<

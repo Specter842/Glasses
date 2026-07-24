@@ -6,7 +6,10 @@
 
 Single-user, local-first **Android app** (`com.glasses.app`): schedule/timetable,
 attendance tracker and learning tracker. No accounts, no cloud sync, dark mode
-only. **Fully offline: no AI, no network, and no Android permissions at all.**
+only. **Fully offline: no AI, no network.** The one exception to "no Android
+permissions" is `POST_NOTIFICATIONS`, used solely for on-device overdue-task
+alerts (see `lib/notifications.ts` below) — don't add another permission
+without asking.
 
 ## Stack
 - Next.js (App Router) + TypeScript + Tailwind CSS v3, built as a **static
@@ -25,6 +28,28 @@ only. **Fully offline: no AI, no network, and no Android permissions at all.**
   commands, attendance explainer, weekly summary) was removed deliberately. Do
   not reintroduce a model, an API key, an SDK, or the `INTERNET` permission
   without asking. Everything the app does is deterministic local computation.
+- **Local notifications** (`lib/notifications.ts`, `@capacitor/local-
+  notifications`) are the one native-plugin exception. `syncNotifications(db)`
+  is called from `DataProvider` whenever a schedule-relevant field changes
+  (tasks, events, or anything `renderDays` depends on), and reconciles three
+  independent kinds against current data — cancelling ones no longer desired,
+  (re)scheduling ones whose target time is new or changed:
+  - **Task overdue**: fires at the moment `isTaskOverdue` would flip true
+    (due_date+1 at local midnight, or created_at + the 36h undated grace).
+  - **Class start**: recurring timetable classes alert right as they begin.
+    Computed via `renderDays` over a rolling 7-day window (`CLASS_WINDOW_DAYS`)
+    re-synced on every app open, so the window keeps advancing; cancelled
+    classes are skipped. Notification ids are hashed from
+    (course, date, time) into a private id range (`CLASS_ID_BASE`), since
+    virtual (non-materialised) class occurrences have no entity id of their
+    own — kept disjoint from real task/event ids (which share one global
+    `db.seq`) so the three kinds can never collide.
+  - **Event reminder**: custom `CalendarEvent`s with a start time alert 10
+    minutes before (`EVENT_REMINDER_MINUTES`); all-day events (no start time)
+    have no moment to alert at and are skipped.
+
+  Purely on-device (Android's AlarmManager via the plugin); no server, no push
+  service. Requires `POST_NOTIFICATIONS`, requested on first sync.
 
 ## Layout
 - `lib/types.ts` — domain types. `CourseType` is `LECTURE | TUTORIAL | PRACTICAL`

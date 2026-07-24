@@ -28,11 +28,34 @@ export function TaskPanel({ tasks }: { tasks: Task[] }) {
   const [dragOffset, setDragOffset] = useState(0);
   const dragStartY = useRef(0);
   const itemRefs = useRef(new Map<number, HTMLDivElement>());
+  const itemRefCallbacks = useRef(new Map<number, (el: HTMLDivElement | null) => void>());
+  // Snapshot of each item's position taken once at drag start. Hit-testing
+  // against this fixed frame (rather than re-measuring after every swap)
+  // avoids the feedback loop where a just-moved neighbour's new position
+  // immediately re-triggers another swap, which is what caused the flicker.
+  const dragStartSlots = useRef<{ id: number; mid: number }[]>([]);
+  // Mirrors `order` so the pointerup handler always commits the latest
+  // arrangement even if its closure was created before the final
+  // in-drag setOrder finished committing.
+  const orderRef = useRef(order);
+  orderRef.current = order;
 
   useEffect(() => {
     if (draggingId === null) setOrder(open.map((t) => t.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, draggingId]);
+
+  const getItemRef = (id: number) => {
+    let cb = itemRefCallbacks.current.get(id);
+    if (!cb) {
+      cb = (el) => {
+        if (el) itemRefs.current.set(id, el);
+        else itemRefs.current.delete(id);
+      };
+      itemRefCallbacks.current.set(id, cb);
+    }
+    return cb;
+  };
 
   const openById = new Map(open.map((t) => [t.id, t]));
   const orderedOpen = order
@@ -40,18 +63,15 @@ export function TaskPanel({ tasks }: { tasks: Task[] }) {
     .filter((t): t is Task => t !== undefined);
 
   const movePointer = (clientY: number, dragId: number) => {
-    const others = order.filter((id) => id !== dragId);
-    let targetIndex = others.length;
-    for (let i = 0; i < others.length; i++) {
-      const el = itemRefs.current.get(others[i]);
-      if (!el) continue;
-      const rect = el.getBoundingClientRect();
-      if (clientY < rect.top + rect.height / 2) {
+    const slots = dragStartSlots.current.filter((s) => s.id !== dragId);
+    let targetIndex = slots.length;
+    for (let i = 0; i < slots.length; i++) {
+      if (clientY < slots[i].mid) {
         targetIndex = i;
         break;
       }
     }
-    const next = [...others];
+    const next = slots.map((s) => s.id);
     next.splice(targetIndex, 0, dragId);
     setOrder((prev) => (next.join(",") === prev.join(",") ? prev : next));
   };
@@ -62,6 +82,10 @@ export function TaskPanel({ tasks }: { tasks: Task[] }) {
   ) => {
     e.preventDefault();
     dragStartY.current = e.clientY;
+    dragStartSlots.current = order.map((taskId) => {
+      const rect = itemRefs.current.get(taskId)?.getBoundingClientRect();
+      return { id: taskId, mid: rect ? rect.top + rect.height / 2 : 0 };
+    });
     setDraggingId(id);
     setDragOffset(0);
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -76,7 +100,7 @@ export function TaskPanel({ tasks }: { tasks: Task[] }) {
   };
   const endDrag = (id: number) => {
     if (draggingId !== id) return;
-    mutate((d) => reorderTasks(d, order));
+    mutate((d) => reorderTasks(d, orderRef.current));
     setDraggingId(null);
     setDragOffset(0);
   };
@@ -137,10 +161,7 @@ export function TaskPanel({ tasks }: { tasks: Task[] }) {
             <TaskItem
               key={t.id}
               task={t}
-              ref={(el) => {
-                if (el) itemRefs.current.set(t.id, el);
-                else itemRefs.current.delete(t.id);
-              }}
+              ref={getItemRef(t.id)}
               dragging={draggingId === t.id}
               style={
                 draggingId === t.id
@@ -154,6 +175,7 @@ export function TaskPanel({ tasks }: { tasks: Task[] }) {
                       onPointerMove: (e) => handlePointerMove(e, t.id),
                       onPointerUp: () => endDrag(t.id),
                       onPointerCancel: () => endDrag(t.id),
+                      onLostPointerCapture: () => endDrag(t.id),
                     }
                   : undefined
               }

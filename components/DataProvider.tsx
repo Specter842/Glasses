@@ -5,11 +5,13 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import { type DB, emptyDB, runRecurring, purgeOldDoneTasks } from "@/lib/store";
 import { loadDB, saveDB, resetStore } from "@/lib/persist";
 import { todayISO } from "@/lib/time";
+import { syncNotifications } from "@/lib/notifications";
 
 interface DataContextValue {
   db: DB;
@@ -54,6 +56,37 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       active = false;
     };
   }, []);
+
+  // structuredClone gives every mutate() call fresh references even when
+  // nothing relevant changed, so key the notification resync off the actual
+  // fields that feed it (tasks, events, and everything renderDays uses for
+  // classes) rather than re-running — and re-touching the native plugin —
+  // on every unrelated edit elsewhere in the app.
+  const notifySignature = useMemo(() => {
+    const taskSig = db.tasks
+      .map((t) => `${t.id}:${t.done}:${t.due_date}:${t.created_at}`)
+      .join(",");
+    const eventSig = db.events
+      .map((e) => `${e.id}:${e.date}:${e.start_time}`)
+      .join(",");
+    const slotSig = db.slots
+      .map((s) => `${s.id}:${s.day_of_week}:${s.start_time}:${s.course_id}`)
+      .join(",");
+    const overrideSig = db.overrides
+      .map((o) => `${o.date}:${o.kind}:${o.source_day_of_week}`)
+      .join(",");
+    const instanceSig = db.instances
+      .map((i) => `${i.id}:${i.date}:${i.start_time}:${i.status}:${i.course_id}`)
+      .join(",");
+    return [taskSig, eventSig, slotSig, overrideSig, instanceSig, db.semester?.id]
+      .join("|");
+  }, [db.tasks, db.events, db.slots, db.overrides, db.instances, db.semester]);
+
+  useEffect(() => {
+    if (!ready) return;
+    void syncNotifications(db);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, notifySignature]);
 
   const mutate = useCallback((fn: (draft: DB) => void) => {
     setDb((prev) => {
