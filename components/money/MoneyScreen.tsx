@@ -12,7 +12,6 @@ import { budgetStatuses, categoryTotals, formatMoney, monthTotals } from "@/lib/
 import { addMonths, formatDayLabel, formatMonthYear, startOfMonth, todayISO } from "@/lib/time";
 import { cx, Card, SectionTitle } from "../ui";
 import { TransactionForm } from "./TransactionForm";
-import { ImportCsv } from "./ImportCsv";
 import { ManageFinance } from "./ManageFinance";
 import { BudgetManager } from "./BudgetManager";
 import { RecurringManager } from "./RecurringManager";
@@ -222,11 +221,6 @@ export function MoneyScreen() {
 
       <BudgetManager />
       <RecurringManager />
-      <ImportCsv
-        onImported={(result) => {
-          if (result.latestDate) setMonth(startOfMonth(result.latestDate));
-        }}
-      />
       <ManageFinance />
     </div>
   );
