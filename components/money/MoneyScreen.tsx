@@ -222,7 +222,11 @@ export function MoneyScreen() {
 
       <BudgetManager />
       <RecurringManager />
-      <ImportCsv />
+      <ImportCsv
+        onImported={(result) => {
+          if (result.latestDate) setMonth(startOfMonth(result.latestDate));
+        }}
+      />
       <ManageFinance />
     </div>
   );

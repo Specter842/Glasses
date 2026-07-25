@@ -5,7 +5,14 @@ import { useData } from "../DataProvider";
 import { importTransactionsCsv, type CsvImportResult } from "@/lib/store";
 import { btn, cx, Card } from "../ui";
 
-export function ImportCsv() {
+export function ImportCsv({
+  onImported,
+}: {
+  /** Called with the import outcome, e.g. to jump the ledger's month view to
+   *  where the imported data landed instead of leaving it on whatever month
+   *  happened to be showing. */
+  onImported?: (result: CsvImportResult) => void;
+}) {
   const { mutate } = useData();
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<CsvImportResult | null>(null);
@@ -13,11 +20,12 @@ export function ImportCsv() {
 
   const onFile = async (file: File) => {
     const text = await file.text();
-    let outcome: CsvImportResult = { imported: 0, skipped: 0 };
+    let outcome: CsvImportResult = { imported: 0, skipped: 0, latestDate: null };
     mutate((d) => {
       outcome = importTransactionsCsv(d, text);
     });
     setResult(outcome);
+    onImported?.(outcome);
     if (inputRef.current) inputRef.current.value = "";
   };
 

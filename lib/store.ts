@@ -864,6 +864,9 @@ export function deleteTransaction(db: DB, id: number) {
 export interface CsvImportResult {
   imported: number;
   skipped: number;
+  /** Most recent date among imported rows — lets the UI jump the ledger's
+   *  month view to where the imported data actually landed. */
+  latestDate: string | null;
 }
 
 /** Minimal RFC-4180 CSV parser: handles quoted fields (with embedded commas
@@ -961,7 +964,7 @@ function findOrCreateCategory(db: DB, name: string, kind: TxKind): number {
 
 export function importTransactionsCsv(db: DB, csvText: string): CsvImportResult {
   const rows = parseCsvRows(csvText);
-  if (rows.length < 2) return { imported: 0, skipped: 0 };
+  if (rows.length < 2) return { imported: 0, skipped: 0, latestDate: null };
 
   const header = rows[0].map((h) => h.trim().toLowerCase());
   const iDate = header.indexOf("date");
@@ -971,11 +974,12 @@ export function importTransactionsCsv(db: DB, csvText: string): CsvImportResult 
   const iMemo = header.indexOf("memo");
   const iWallet = header.indexOf("wallet");
   if (iDate < 0 || iType < 0 || iCategory < 0 || iAmount < 0) {
-    return { imported: 0, skipped: rows.length - 1 };
+    return { imported: 0, skipped: rows.length - 1, latestDate: null };
   }
 
   let imported = 0;
   let skipped = 0;
+  let latestDate: string | null = null;
 
   for (const cells of rows.slice(1)) {
     const rawType = cells[iType]?.trim().toUpperCase();
@@ -1005,9 +1009,10 @@ export function importTransactionsCsv(db: DB, csvText: string): CsvImportResult 
       created_at: parsed.iso,
     });
     imported++;
+    if (!latestDate || parsed.date > latestDate) latestDate = parsed.date;
   }
 
-  return { imported, skipped };
+  return { imported, skipped, latestDate };
 }
 
 export function setCurrency(db: DB, currency: string) {
