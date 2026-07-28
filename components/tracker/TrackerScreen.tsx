@@ -6,13 +6,15 @@ import { getTasksSorted } from "@/lib/store";
 import { cx, SectionTitle } from "../ui";
 import { TaskPanel } from "../tasks/TaskPanel";
 import { HabitsPanel } from "./HabitsPanel";
+import { RoutinesPanel } from "./RoutinesPanel";
 import { NotesPanel } from "./NotesPanel";
 
-type Section = "habits" | "todo" | "notes";
+type Section = "habits" | "todo" | "routines" | "notes";
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: "habits", label: "Habits" },
   { id: "todo", label: "To-do" },
+  { id: "routines", label: "Routines" },
   { id: "notes", label: "Notes" },
 ];
 
@@ -32,7 +34,7 @@ export function TrackerScreen() {
     <div className="flex flex-col gap-6">
       <SectionTitle>Tracker</SectionTitle>
 
-      {/* Segmented switch between habits, to-do and notes. */}
+      {/* Segmented switch between habits, to-do, routines and notes. */}
       <div className="flex rounded-md border border-border p-0.5">
         {SECTIONS.map((s) => {
           const active = section === s.id;
@@ -57,6 +59,7 @@ export function TrackerScreen() {
 
       {section === "habits" && <HabitsPanel />}
       {section === "todo" && <TaskPanel tasks={tasks} />}
+      {section === "routines" && <RoutinesPanel />}
       {section === "notes" && <NotesPanel />}
     </div>
   );

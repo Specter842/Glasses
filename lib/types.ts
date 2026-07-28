@@ -94,6 +94,35 @@ export interface HabitLog {
   date: string; // YYYY-MM-DD
 }
 
+/** A named weekly plan: "Gym", "Diet", or anything else the user wants to
+ *  template out by day of week — generic, not fixed to any one purpose. */
+export interface Routine {
+  id: number;
+  name: string;
+  color: string;
+  created_at: string;
+}
+
+/** One entry on a routine's weekly template — e.g. "Push-ups 3x12" on
+ *  Monday, or "Breakfast — oats" every day. Recurs on day_of_week like a
+ *  TimetableSlot; time is optional since not every routine item is a
+ *  fixed-time appointment. */
+export interface RoutineItem {
+  id: number;
+  routine_id: number;
+  day_of_week: number; // 0 = Sunday .. 6 = Saturday
+  time: string | null; // HH:MM (24h), optional
+  title: string;
+  note: string | null;
+}
+
+/** Presence of a row means that item's occurrence on that date was done. */
+export interface RoutineLog {
+  id: number;
+  routine_item_id: number;
+  date: string; // YYYY-MM-DD
+}
+
 /**
  * A one-off calendar entry that isn't a class: a deadline, a trip, an exam.
  * Never counted toward attendance — the timetable owns that.

@@ -9,6 +9,9 @@ import type {
   Task,
   Habit,
   HabitLog,
+  Routine,
+  RoutineItem,
+  RoutineLog,
   Account,
   Category,
   Transaction,
@@ -47,6 +50,9 @@ export interface DB {
   tasks: Task[];
   habits: Habit[];
   habitLogs: HabitLog[];
+  routines: Routine[];
+  routineItems: RoutineItem[];
+  routineLogs: RoutineLog[];
   accounts: Account[];
   categories: Category[];
   transactions: Transaction[];
@@ -71,6 +77,9 @@ export function emptyDB(): DB {
     tasks: [],
     habits: [],
     habitLogs: [],
+    routines: [],
+    routineItems: [],
+    routineLogs: [],
     accounts: [],
     categories: [],
     transactions: [],
@@ -267,6 +276,9 @@ export function normalizeDB(input: unknown): DB {
     tasks,
     habits: d.habits ?? [],
     habitLogs: d.habitLogs ?? [],
+    routines: d.routines ?? [],
+    routineItems: d.routineItems ?? [],
+    routineLogs: d.routineLogs ?? [],
     accounts: d.accounts ?? [],
     categories: d.categories ?? [],
     transactions: d.transactions ?? [],
@@ -697,6 +709,115 @@ export function toggleHabit(db: DB, habitId: number, date: string) {
     db.habitLogs.splice(existing, 1);
   } else {
     db.habitLogs.push({ id: nextId(db), habit_id: habitId, date });
+  }
+}
+
+// ---- Routines ----
+//
+// A generic weekly-template tracker: a Routine (e.g. "Gym", "Diet") owns
+// RoutineItems recurring on a day_of_week, like a personal timetable.
+// RoutineLog existing for (item, date) means that occurrence was done —
+// same existence-means-done convention as HabitLog.
+
+export function getRoutines(db: DB): Routine[] {
+  return [...db.routines].sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
+}
+
+export function getRoutineItems(db: DB, routineId: number): RoutineItem[] {
+  return db.routineItems
+    .filter((i) => i.routine_id === routineId)
+    .sort(
+      (a, b) =>
+        a.day_of_week - b.day_of_week ||
+        (a.time ?? "").localeCompare(b.time ?? ""),
+    );
+}
+
+export function getRoutineItemsForDay(
+  db: DB,
+  routineId: number,
+  dow: number,
+): RoutineItem[] {
+  return db.routineItems
+    .filter((i) => i.routine_id === routineId && i.day_of_week === dow)
+    .sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
+}
+
+/** routine item id -> set of ISO dates it was completed on. */
+export function routineLogIndex(db: DB): Map<number, Set<string>> {
+  const map = new Map<number, Set<string>>();
+  for (const log of db.routineLogs) {
+    let set = map.get(log.routine_item_id);
+    if (!set) {
+      set = new Set();
+      map.set(log.routine_item_id, set);
+    }
+    set.add(log.date);
+  }
+  return map;
+}
+
+export function addRoutine(db: DB, input: { name: string; color: string }) {
+  const name = input.name.trim();
+  if (!name) return;
+  db.routines.push({
+    id: nextId(db),
+    name,
+    color: input.color,
+    created_at: nowISO(),
+  });
+}
+
+export function deleteRoutine(db: DB, id: number) {
+  const itemIds = new Set(
+    db.routineItems.filter((i) => i.routine_id === id).map((i) => i.id),
+  );
+  db.routines = db.routines.filter((r) => r.id !== id);
+  db.routineItems = db.routineItems.filter((i) => i.routine_id !== id);
+  db.routineLogs = db.routineLogs.filter((l) => !itemIds.has(l.routine_item_id));
+}
+
+export function addRoutineItem(
+  db: DB,
+  input: {
+    routineId: number;
+    dayOfWeek: number;
+    time?: string | null;
+    title: string;
+    note?: string | null;
+  },
+) {
+  const title = input.title.trim();
+  if (!title) return;
+  if (!db.routines.some((r) => r.id === input.routineId)) return;
+  db.routineItems.push({
+    id: nextId(db),
+    routine_id: input.routineId,
+    day_of_week: input.dayOfWeek,
+    time: input.time || null,
+    title,
+    note: input.note?.trim() || null,
+  });
+}
+
+export function deleteRoutineItem(db: DB, id: number) {
+  db.routineItems = db.routineItems.filter((i) => i.id !== id);
+  db.routineLogs = db.routineLogs.filter((l) => l.routine_item_id !== id);
+}
+
+/** Mark an occurrence done / not done. Idempotent per (item, date). */
+export function toggleRoutineItemLog(
+  db: DB,
+  routineItemId: number,
+  date: string,
+) {
+  const existing = db.routineLogs.findIndex(
+    (l) => l.routine_item_id === routineItemId && l.date === date,
+  );
+  if (existing >= 0) {
+    db.routineLogs.splice(existing, 1);
+  } else {
+    db.routineLogs.push({ id: nextId(db), routine_item_id: routineItemId, date });
   }
 }
 

@@ -6,10 +6,13 @@
 
 Single-user, local-first **Android app** (`com.glasses.app`): schedule/timetable,
 attendance tracker and learning tracker. No accounts, no cloud sync, dark mode
-only. **Fully offline: no AI, no network.** The one exception to "no Android
-permissions" is `POST_NOTIFICATIONS`, used solely for on-device overdue-task
-alerts (see `lib/notifications.ts` below) — don't add another permission
-without asking.
+only. **Fully offline: no AI, no network.** "No AI" means no LLM/generative
+model and no API calls — the one narrow exception is on-device OCR for
+timetable/holiday import (`lib/ocr.ts`, see below), a local pattern-recognition
+model with no network calls, not a generative one; don't blur this line
+further without asking. The one exception to "no Android permissions" is
+`POST_NOTIFICATIONS`, used solely for on-device overdue-task alerts (see
+`lib/notifications.ts` below) — don't add another permission without asking.
 
 ## Stack
 - Next.js (App Router) + TypeScript + Tailwind CSS v3, built as a **static
@@ -24,10 +27,33 @@ without asking.
   - `lib/persist.ts` — load/save via Preferences.
   - `components/DataProvider.tsx` — React context; `useData()` returns
     `{ db, ready, mutate, reset }`.
-- **No AI, no network.** The AI layer (Gemini timetable import, NL schedule
-  commands, attendance explainer, weekly summary) was removed deliberately. Do
-  not reintroduce a model, an API key, an SDK, or the `INTERNET` permission
-  without asking. Everything the app does is deterministic local computation.
+- **No AI, no network.** The original AI layer (Gemini timetable import, NL
+  schedule commands, attendance explainer, weekly summary) was removed
+  deliberately. Do not reintroduce a cloud model, an API key, an SDK, or the
+  `INTERNET` permission without asking. Everything the app does is
+  deterministic local computation, plus the one on-device-OCR exception below.
+- **Timetable/holiday import via on-device OCR** (`lib/ocr.ts`,
+  `lib/timetableParse.ts`, `lib/holidayParse.ts`,
+  `components/setup/ImportTimetable.tsx` /`ImportHolidays.tsx`) — this is
+  literally the feature the old Gemini import did, rebuilt without a network
+  call. `runOcr` rasterises PDFs with `pdfjs-dist` (Tesseract doesn't read
+  PDFs) and runs `tesseract.js` fully offline: `worker.min.js`,
+  the four `tesseract-core*.wasm.js` cores, `eng.traineddata.gz`, and pdf.js's
+  worker/cmaps/standard_fonts are all vendored under `public/` (~35MB) and
+  loaded from local paths — never a CDN. Tesseract's own block→paragraph→line
+  segmentation is used directly rather than hand-rolled bbox clustering.
+  - `timetableParse.ts` only handles **list-format** timetables (a day
+    header/prefix followed by one time-slot per line) — it does not
+    reconstruct 2D grid tables, so a photographed grid timetable will parse
+    poorly. This is a scoped, accepted limitation, not a bug.
+  - `holidayParse.ts` regexes for date-like tokens (numeric, "DD Month
+    [YYYY]", "Month DD[, YYYY]") and takes the rest of the line as a label
+    (label is UI-only, not persisted — commit only writes the date via
+    `clearSchedule`).
+  - **Neither parser's output is ever auto-committed.** Both feed an
+    editable review table (add/remove/edit rows) the user must confirm;
+    commit then calls the normal `addCourse`/`addSlot`/`clearSchedule` store
+    functions. Treat this as the correctness boundary if you touch it.
 - **Local notifications** (`lib/notifications.ts`, `@capacitor/local-
   notifications`) are the one native-plugin exception. `syncNotifications(db)`
   is called from `DataProvider` whenever a schedule-relevant field changes
@@ -93,15 +119,23 @@ without asking.
   so opening the app repeatedly never double-charges. The recurrence math is
   unit-tested; keep it that way if you touch it.
 - **Tracker** (`/tracker`, `TrackerScreen`) is a single screen with a segmented
-  switch over three panels in `components/tracker/`: **Habits** (`HabitsPanel`),
-  **To-do** (the shared `TaskPanel`, moved here off the Calendar) and **Notes**
-  (`NotesPanel`). Each panel reads `useData()` directly; the screen owns the
-  `ready` gate and the toggle.
+  switch over four panels in `components/tracker/`: **Habits** (`HabitsPanel`),
+  **To-do** (the shared `TaskPanel`, moved here off the Calendar), **Routines**
+  (`RoutinesPanel`) and **Notes** (`NotesPanel`). Each panel reads `useData()`
+  directly; the screen owns the `ready` gate and the toggle.
 - Habits: a `HabitLog` row existing for (habit, date) means "done that day" —
   toggling adds/removes the row, so there is no third state. The month grid is
   the input surface (future days locked) and `components/habits/TallyMarks.tsx`
   renders the monthly count as real tally marks: groups of five drawn as four
   uprights struck through by a diagonal.
+- **Routines** are a generic weekly-template tracker — not fixed to "Gym" or
+  "Diet", the user names each one. A `Routine` owns `RoutineItem`s recurring
+  on a `day_of_week` (title, optional time/note), structurally the same shape
+  as a personal `TimetableSlot`. A `RoutineLog` row existing for (item, date)
+  means that occurrence was done that day — same existence-means-done
+  convention as `HabitLog`. `getRoutineItemsForDay` drives the "Today"
+  checklist; the weekly template editor groups items by day like
+  `SlotManager` does for the timetable.
 - Notes are plain free-text jottings (`Note` = id + text + created_at) with no
   dates or status. `addNote` / `updateNote` / `deleteNote` / `getNotes` in
   `lib/store.ts`; newest first. They never touch any other collection.
@@ -121,6 +155,11 @@ without asking.
   asking.
 - **Git: every commit is pushed to `origin` (github.com/Specter842/Glasses).
   Never add Claude as a co-author or `Co-Authored-By` trailer.**
+- **Standing authorization: after implementing a change, commit, push to
+  `origin/main`, build the debug APK, and deliver it — without asking for
+  confirmation first.** Still report what was committed/built. This does not
+  extend to anything destructive or outside this exact sequence (force-push,
+  resets, branch deletion, etc.) — those still require asking.
 - **Every action is deterministic.** Clear/duplicate schedule, task CRUD, course
   and resource status, attendance marking, delete timetable — all call store
   functions directly. There is no model, no chat box, and no network call

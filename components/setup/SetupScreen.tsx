@@ -6,6 +6,8 @@ import { SectionTitle } from "../ui";
 import { SemesterForm } from "./SemesterForm";
 import { CourseManager } from "./CourseManager";
 import { SlotManager } from "./SlotManager";
+import { ImportTimetable } from "./ImportTimetable";
+import { ImportHolidays } from "./ImportHolidays";
 import { DeleteTimetable } from "./DeleteTimetable";
 import { CurrencyForm } from "./CurrencyForm";
 
@@ -53,6 +55,12 @@ export function SetupScreen() {
       <section className="flex flex-col gap-4">
         <SectionTitle>Weekly timetable</SectionTitle>
         <SlotManager courses={courses} slots={slots} />
+        <ImportTimetable hasSemester={!!db.semester} />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <SectionTitle>Holidays</SectionTitle>
+        <ImportHolidays />
       </section>
 
       {hasTimetable && (
