@@ -8,6 +8,7 @@ import { CourseManager } from "./CourseManager";
 import { SlotManager } from "./SlotManager";
 import { ImportTimetable } from "./ImportTimetable";
 import { ImportHolidays } from "./ImportHolidays";
+import { LoadOddSem2026 } from "./LoadOddSem2026";
 import { DeleteTimetable } from "./DeleteTimetable";
 import { CurrencyForm } from "./CurrencyForm";
 
@@ -36,6 +37,11 @@ export function SetupScreen() {
           attendance threshold.
         </p>
       </div>
+
+      <section className="flex flex-col gap-4">
+        <SectionTitle>Quick load</SectionTitle>
+        <LoadOddSem2026 />
+      </section>
 
       <section className="flex flex-col gap-4">
         <SectionTitle>General</SectionTitle>

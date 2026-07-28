@@ -626,6 +626,121 @@ export function deleteSlot(db: DB, id: number) {
   db.slots = db.slots.filter((s) => s.id !== id);
 }
 
+// ---- Odd Sem 2026-27 real timetable + calendar ----
+//
+// One-off, hand-transcribed from the user's actual timetable photo and
+// academic calendar (BEST3.3 = Industrial Engineering, per the user).
+// Additive and idempotent: skips courses/slots that already exist by
+// (name, type) / (course, day, start), so the Setup button that calls this
+// can be tapped more than once without creating duplicates, and never
+// touches tasks/money/attendance.
+
+export function applyOddSem2026Timetable(db: DB) {
+  saveSemester(db, {
+    name: "Odd Sem 2026-27",
+    startDate: "2026-07-27",
+    endDate: "2026-12-19",
+  });
+
+  const COLORS = ["#2E5BFF", "#5B8CFF", "#E11030", "#FF2D55", "#17C964", "#37FF8B"];
+  let colorIdx = 0;
+  const courseOf = (name: string, type: CourseType): number => {
+    const existing = db.courses.find((c) => c.name === name && c.type === type);
+    if (existing) return existing.id;
+    addCourse(db, { name, type, color: COLORS[colorIdx++ % COLORS.length], thresholdPct: 75 });
+    return db.courses[db.courses.length - 1].id;
+  };
+  const slot = (
+    courseId: number,
+    dow: number,
+    start: string,
+    end: string,
+    loc: string,
+  ) => {
+    const dup = db.slots.find(
+      (s) => s.course_id === courseId && s.day_of_week === dow && s.start_time === start,
+    );
+    if (dup) return;
+    addSlot(db, { courseId, dayOfWeek: dow, startTime: start, endTime: end, location: loc });
+  };
+
+  const aiL = courseOf("AI for Engineers", "LECTURE");
+  const aiP = courseOf("AI for Engineers", "PRACTICAL");
+  const oopL = courseOf("Object Oriented Programming", "LECTURE");
+  const oopP = courseOf("Object Oriented Programming", "PRACTICAL");
+  const bestEd = courseOf("BEST-ED", "LECTURE");
+  const bestEeHp = courseOf("BEST-EE/HP", "LECTURE");
+  const indT = courseOf("Industrial Engineering", "TUTORIAL");
+  const indL = courseOf("Industrial Engineering", "LECTURE");
+  const mechL = courseOf("Mechanics", "LECTURE");
+  const mechT = courseOf("Mechanics", "TUTORIAL");
+  const bestEeP = courseOf("BEST-EE", "PRACTICAL");
+  const bestSen = courseOf("BEST-SEN", "LECTURE");
+  const optL = courseOf("Optimization Methods", "LECTURE");
+  const optP = courseOf("Optimization Methods", "PRACTICAL");
+  const sigL = courseOf("Signal Conditioning and Data Acquisition", "LECTURE");
+  const sigP = courseOf("Signal Conditioning and Data Acquisition", "PRACTICAL");
+
+  // 1=Mon .. 5=Fri
+  // Monday
+  slot(aiL, 1, "08:50", "09:40", "F103");
+  slot(oopL, 1, "09:40", "10:30", "F103");
+  slot(optP, 1, "11:20", "12:10", "FIST(G307) LAB");
+  slot(optP, 1, "12:10", "13:00", "FIST(G307) LAB");
+  slot(sigL, 1, "13:50", "14:40", "F103");
+  slot(indL, 1, "14:40", "15:30", "F103");
+  // Tuesday
+  slot(indT, 2, "09:40", "10:30", "F209");
+  slot(bestEeP, 2, "10:30", "11:20", "LAB");
+  slot(bestEeP, 2, "11:20", "12:10", "LAB");
+  slot(indL, 2, "13:50", "14:40", "F103");
+  slot(sigL, 2, "14:40", "15:30", "F103");
+  slot(aiP, 2, "15:30", "16:20", "F103 LAB");
+  slot(aiP, 2, "16:20", "17:10", "F103 LAB");
+  // Wednesday
+  slot(oopL, 3, "08:50", "09:40", "F103");
+  slot(bestEeHp, 3, "09:40", "10:30", "F103");
+  slot(bestSen, 3, "10:30", "11:20", "F103");
+  slot(optL, 3, "11:20", "12:10", "F103");
+  slot(mechL, 3, "12:10", "13:00", "F103");
+  slot(sigP, 3, "13:50", "14:40", "ISD LAB");
+  slot(sigP, 3, "14:40", "15:30", "ISD LAB");
+  // Thursday
+  slot(bestEd, 4, "08:00", "08:50", "F103");
+  slot(bestEeHp, 4, "08:50", "09:40", "F103");
+  slot(mechL, 4, "09:40", "10:30", "F103");
+  slot(mechT, 4, "11:20", "12:10", "F210");
+  slot(oopL, 4, "13:50", "14:40", "F103");
+  slot(optL, 4, "14:40", "15:30", "F103");
+  slot(aiL, 4, "15:30", "16:20", "F103");
+  // Friday
+  slot(optL, 5, "10:30", "11:20", "F103");
+  slot(oopP, 5, "11:20", "12:10", "ED-2(L209) LAB");
+  slot(oopP, 5, "12:10", "13:00", "ED-2(L209) LAB");
+
+  // Gazetted holidays + non-teaching days (cleared — no classes)
+  const holidays = [
+    "2026-09-04", // Janamashtmi
+    "2026-10-02", // Gandhi Jayanti
+    "2026-10-19", // NT
+    "2026-10-20", // Dussehra
+    "2026-10-26", // Birthday of Maharishi Balmiki Ji
+    "2026-11-09", // Diwali break
+    "2026-11-10",
+    "2026-11-11",
+    "2026-11-12",
+    "2026-11-13",
+    "2026-11-23", // NT
+    "2026-11-24", // Gurupurab (Guru Nanak Dev Ji)
+    "2026-12-14", // Shaheedi Diwas (Guru Teg Bahadur Ji)
+  ];
+  for (const date of holidays) clearSchedule(db, date);
+
+  // Teaching Saturdays in lieu of the NT days above, run Monday's timetable
+  duplicateDay(db, "2026-10-31", 1);
+  duplicateDay(db, "2026-11-28", 1);
+}
+
 // ---- Whole-timetable delete ----
 
 /**
