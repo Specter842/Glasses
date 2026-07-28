@@ -5,6 +5,7 @@ import type {
   TimetableSlot,
   DateOverride,
   ClassInstance,
+  ClassStatus,
   CalendarEvent,
   Task,
   Habit,
@@ -296,7 +297,54 @@ export function normalizeDB(input: unknown): DB {
   // Give it the starter set. An *empty* array means the user deleted them —
   // leave that alone.
   if (d.categories === undefined) seedFinanceDefaults(next);
+  mergeDuplicateCourses(next);
   return next;
+}
+
+/** Courses are judged as one subject by name — Lecture/Tutorial/Practical of
+ *  the same course should share one attendance pool, not split into three.
+ *  Merges any same-named courses within a semester (lowest id survives),
+ *  moving their slots/instances onto the survivor and backfilling each
+ *  moved row's `type` from the duplicate course's type so the Lecture/
+ *  Tutorial/Practical badge is preserved per-slot. Idempotent — runs on
+ *  every load, a no-op once there's nothing left to merge. */
+function mergeDuplicateCourses(db: DB) {
+  const groups = new Map<string, Course[]>();
+  for (const c of db.courses) {
+    const key = `${c.semester_id}::${c.name.trim().toLowerCase()}`;
+    const list = groups.get(key) ?? [];
+    list.push(c);
+    groups.set(key, list);
+  }
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    group.sort((a, b) => a.id - b.id);
+    const [survivor, ...dupes] = group;
+    const dupeIds = new Set(dupes.map((c) => c.id));
+    // Every course in the group (survivor included) had its own `type` before
+    // merging — backfill each slot/instance's now-per-slot type from whichever
+    // course it originally belonged to, so nothing depends on the fallback to
+    // course.type once this settles (that fallback is still there for safety,
+    // but the merge itself shouldn't leave it as the only source of truth).
+    const typeOf = new Map(group.map((c) => [c.id, c.type]));
+    for (const slot of db.slots) {
+      if (slot.course_id === survivor.id) {
+        if (slot.type == null) slot.type = typeOf.get(survivor.id) ?? null;
+      } else if (dupeIds.has(slot.course_id)) {
+        if (slot.type == null) slot.type = typeOf.get(slot.course_id) ?? null;
+        slot.course_id = survivor.id;
+      }
+    }
+    for (const inst of db.instances) {
+      if (inst.course_id === survivor.id) {
+        if (inst.type == null) inst.type = typeOf.get(survivor.id) ?? null;
+      } else if (dupeIds.has(inst.course_id)) {
+        if (inst.type == null) inst.type = typeOf.get(inst.course_id) ?? null;
+        inst.course_id = survivor.id;
+      }
+    }
+    db.courses = db.courses.filter((c) => !dupeIds.has(c.id));
+  }
 }
 
 // ===========================================================================
@@ -364,6 +412,30 @@ function upsertOverride(
   }
 }
 
+/** Materialise every slot on `dow` into a fresh instance for `date`, at the
+ *  given status. Shared by clearSchedule/duplicateDay/markAttendance so a
+ *  date's classes are always all-or-nothing once instances exist for it —
+ *  renderDays treats "any instance exists for this date" as authoritative,
+ *  so partially materialising just one class would hide the rest. */
+function materialiseDay(
+  db: DB,
+  date: string,
+  dow: number,
+  status: ClassStatus,
+) {
+  for (const slot of getSlotsForDay(db, dow)) {
+    db.instances.push({
+      id: nextId(db),
+      course_id: slot.course_id,
+      date,
+      start_time: slot.start_time,
+      end_time: slot.end_time,
+      status,
+      type: slot.type ?? null,
+    });
+  }
+}
+
 /** Clear a date: mark all its classes CANCELLED (materialising the template if
  *  none exist yet). Cancelled classes are excluded from attendance maths. */
 export function clearSchedule(db: DB, date: string) {
@@ -372,17 +444,7 @@ export function clearSchedule(db: DB, date: string) {
   if (existing.length > 0) {
     for (const i of existing) i.status = "CANCELLED";
   } else if (db.semester) {
-    const dow = dayOfWeek(date);
-    for (const slot of getSlotsForDay(db, dow)) {
-      db.instances.push({
-        id: nextId(db),
-        course_id: slot.course_id,
-        date,
-        start_time: slot.start_time,
-        end_time: slot.end_time,
-        status: "CANCELLED",
-      });
-    }
+    materialiseDay(db, date, dayOfWeek(date), "CANCELLED");
   }
 }
 
@@ -392,16 +454,7 @@ export function duplicateDay(db: DB, targetDate: string, sourceDow: number) {
   if (!db.semester) return;
   upsertOverride(db, targetDate, "COPY_FROM_DAY", sourceDow);
   db.instances = db.instances.filter((i) => i.date !== targetDate);
-  for (const slot of getSlotsForDay(db, sourceDow)) {
-    db.instances.push({
-      id: nextId(db),
-      course_id: slot.course_id,
-      date: targetDate,
-      start_time: slot.start_time,
-      end_time: slot.end_time,
-      status: "SCHEDULED",
-    });
-  }
+  materialiseDay(db, targetDate, sourceDow, "SCHEDULED");
 }
 
 /** Remove any override + instances for a date, back to the plain template. */
@@ -418,8 +471,13 @@ export interface Occurrence {
 }
 
 /**
- * Record attendance for one class occurrence. Template classes have no
- * ClassInstance yet, so this materialises one keyed by (course, date, start).
+ * Record attendance for one class occurrence. Template days have no
+ * ClassInstance rows yet — renderDays treats "any instance exists for this
+ * date" as authoritative, so materialising just the one occurrence being
+ * marked would make every other class that day vanish. To avoid that, the
+ * whole day's template is materialised first (SCHEDULED) if nothing exists
+ * for the date yet, same as clearSchedule/duplicateDay already do; only then
+ * is the specific occurrence's status set.
  * ATTENDED / ABSENT count toward the course; CANCELLED and SCHEDULED do not.
  */
 export function markAttendance(
@@ -427,6 +485,11 @@ export function markAttendance(
   occ: Occurrence,
   status: "ATTENDED" | "ABSENT" | "CANCELLED" | "SCHEDULED",
 ) {
+  const dayHasInstances = db.instances.some((i) => i.date === occ.date);
+  if (!dayHasInstances && db.semester) {
+    materialiseDay(db, occ.date, dayOfWeek(occ.date), "SCHEDULED");
+  }
+
   const existing = db.instances.find(
     (i) =>
       i.course_id === occ.courseId &&
@@ -610,6 +673,10 @@ export function addSlot(
     startTime: string;
     endTime: string;
     location?: string | null;
+    // Overrides the parent course's type for this slot — e.g. a Practical
+    // slot on a course whose other slots are Lectures. Null/omitted falls
+    // back to course.type.
+    type?: CourseType | null;
   },
 ) {
   db.slots.push({
@@ -619,6 +686,7 @@ export function addSlot(
     start_time: input.startTime,
     end_time: input.endTime,
     location: input.location?.trim() || null,
+    type: input.type ?? null,
   });
 }
 
@@ -642,12 +710,21 @@ export function applyOddSem2026Timetable(db: DB) {
     endDate: "2026-12-19",
   });
 
+  // One course per subject, combining Lecture/Tutorial/Practical under one
+  // attendance pool — courseOf keys by name only (not name+type), so e.g.
+  // "Object Oriented Programming" Lecture and Practical share one course;
+  // each slot() call still records its own session type for the badge.
   const COLORS = ["#2E5BFF", "#5B8CFF", "#E11030", "#FF2D55", "#17C964", "#37FF8B"];
   let colorIdx = 0;
-  const courseOf = (name: string, type: CourseType): number => {
-    const existing = db.courses.find((c) => c.name === name && c.type === type);
+  const courseOf = (name: string, defaultType: CourseType): number => {
+    const existing = db.courses.find((c) => c.name === name);
     if (existing) return existing.id;
-    addCourse(db, { name, type, color: COLORS[colorIdx++ % COLORS.length], thresholdPct: 75 });
+    addCourse(db, {
+      name,
+      type: defaultType,
+      color: COLORS[colorIdx++ % COLORS.length],
+      thresholdPct: 75,
+    });
     return db.courses[db.courses.length - 1].id;
   };
   const slot = (
@@ -656,67 +733,62 @@ export function applyOddSem2026Timetable(db: DB) {
     start: string,
     end: string,
     loc: string,
+    type: CourseType,
   ) => {
     const dup = db.slots.find(
       (s) => s.course_id === courseId && s.day_of_week === dow && s.start_time === start,
     );
     if (dup) return;
-    addSlot(db, { courseId, dayOfWeek: dow, startTime: start, endTime: end, location: loc });
+    addSlot(db, { courseId, dayOfWeek: dow, startTime: start, endTime: end, location: loc, type });
   };
 
-  const aiL = courseOf("AI for Engineers", "LECTURE");
-  const aiP = courseOf("AI for Engineers", "PRACTICAL");
-  const oopL = courseOf("Object Oriented Programming", "LECTURE");
-  const oopP = courseOf("Object Oriented Programming", "PRACTICAL");
+  const ai = courseOf("AI for Engineers", "LECTURE");
+  const oop = courseOf("Object Oriented Programming", "LECTURE");
   const bestEd = courseOf("BEST-ED", "LECTURE");
   const bestEeHp = courseOf("BEST-EE/HP", "LECTURE");
-  const indT = courseOf("Industrial Engineering", "TUTORIAL");
-  const indL = courseOf("Industrial Engineering", "LECTURE");
-  const mechL = courseOf("Mechanics", "LECTURE");
-  const mechT = courseOf("Mechanics", "TUTORIAL");
+  const ind = courseOf("Industrial Engineering", "LECTURE");
+  const mech = courseOf("Mechanics", "LECTURE");
   const bestEeP = courseOf("BEST-EE", "PRACTICAL");
   const bestSen = courseOf("BEST-SEN", "LECTURE");
-  const optL = courseOf("Optimization Methods", "LECTURE");
-  const optP = courseOf("Optimization Methods", "PRACTICAL");
-  const sigL = courseOf("Signal Conditioning and Data Acquisition", "LECTURE");
-  const sigP = courseOf("Signal Conditioning and Data Acquisition", "PRACTICAL");
+  const opt = courseOf("Optimization Methods", "LECTURE");
+  const sig = courseOf("Signal Conditioning and Data Acquisition", "LECTURE");
 
   // 1=Mon .. 5=Fri
   // Monday
-  slot(aiL, 1, "08:50", "09:40", "F103");
-  slot(oopL, 1, "09:40", "10:30", "F103");
-  slot(optP, 1, "11:20", "12:10", "FIST(G307) LAB");
-  slot(optP, 1, "12:10", "13:00", "FIST(G307) LAB");
-  slot(sigL, 1, "13:50", "14:40", "F103");
-  slot(indL, 1, "14:40", "15:30", "F103");
+  slot(ai, 1, "08:50", "09:40", "F103", "LECTURE");
+  slot(oop, 1, "09:40", "10:30", "F103", "LECTURE");
+  slot(opt, 1, "11:20", "12:10", "FIST(G307) LAB", "PRACTICAL");
+  slot(opt, 1, "12:10", "13:00", "FIST(G307) LAB", "PRACTICAL");
+  slot(sig, 1, "13:50", "14:40", "F103", "LECTURE");
+  slot(ind, 1, "14:40", "15:30", "F103", "LECTURE");
   // Tuesday
-  slot(indT, 2, "09:40", "10:30", "F209");
-  slot(bestEeP, 2, "10:30", "11:20", "LAB");
-  slot(bestEeP, 2, "11:20", "12:10", "LAB");
-  slot(indL, 2, "13:50", "14:40", "F103");
-  slot(sigL, 2, "14:40", "15:30", "F103");
-  slot(aiP, 2, "15:30", "16:20", "F103 LAB");
-  slot(aiP, 2, "16:20", "17:10", "F103 LAB");
+  slot(ind, 2, "09:40", "10:30", "F209", "TUTORIAL");
+  slot(bestEeP, 2, "10:30", "11:20", "LAB", "PRACTICAL");
+  slot(bestEeP, 2, "11:20", "12:10", "LAB", "PRACTICAL");
+  slot(ind, 2, "13:50", "14:40", "F103", "LECTURE");
+  slot(sig, 2, "14:40", "15:30", "F103", "LECTURE");
+  slot(ai, 2, "15:30", "16:20", "F103 LAB", "PRACTICAL");
+  slot(ai, 2, "16:20", "17:10", "F103 LAB", "PRACTICAL");
   // Wednesday
-  slot(oopL, 3, "08:50", "09:40", "F103");
-  slot(bestEeHp, 3, "09:40", "10:30", "F103");
-  slot(bestSen, 3, "10:30", "11:20", "F103");
-  slot(optL, 3, "11:20", "12:10", "F103");
-  slot(mechL, 3, "12:10", "13:00", "F103");
-  slot(sigP, 3, "13:50", "14:40", "ISD LAB");
-  slot(sigP, 3, "14:40", "15:30", "ISD LAB");
+  slot(oop, 3, "08:50", "09:40", "F103", "LECTURE");
+  slot(bestEeHp, 3, "09:40", "10:30", "F103", "LECTURE");
+  slot(bestSen, 3, "10:30", "11:20", "F103", "LECTURE");
+  slot(opt, 3, "11:20", "12:10", "F103", "LECTURE");
+  slot(mech, 3, "12:10", "13:00", "F103", "LECTURE");
+  slot(sig, 3, "13:50", "14:40", "ISD LAB", "PRACTICAL");
+  slot(sig, 3, "14:40", "15:30", "ISD LAB", "PRACTICAL");
   // Thursday
-  slot(bestEd, 4, "08:00", "08:50", "F103");
-  slot(bestEeHp, 4, "08:50", "09:40", "F103");
-  slot(mechL, 4, "09:40", "10:30", "F103");
-  slot(mechT, 4, "11:20", "12:10", "F210");
-  slot(oopL, 4, "13:50", "14:40", "F103");
-  slot(optL, 4, "14:40", "15:30", "F103");
-  slot(aiL, 4, "15:30", "16:20", "F103");
+  slot(bestEd, 4, "08:00", "08:50", "F103", "LECTURE");
+  slot(bestEeHp, 4, "08:50", "09:40", "F103", "LECTURE");
+  slot(mech, 4, "09:40", "10:30", "F103", "LECTURE");
+  slot(mech, 4, "11:20", "12:10", "F210", "TUTORIAL");
+  slot(oop, 4, "13:50", "14:40", "F103", "LECTURE");
+  slot(opt, 4, "14:40", "15:30", "F103", "LECTURE");
+  slot(ai, 4, "15:30", "16:20", "F103", "LECTURE");
   // Friday
-  slot(optL, 5, "10:30", "11:20", "F103");
-  slot(oopP, 5, "11:20", "12:10", "ED-2(L209) LAB");
-  slot(oopP, 5, "12:10", "13:00", "ED-2(L209) LAB");
+  slot(opt, 5, "10:30", "11:20", "F103", "LECTURE");
+  slot(oop, 5, "11:20", "12:10", "ED-2(L209) LAB", "PRACTICAL");
+  slot(oop, 5, "12:10", "13:00", "ED-2(L209) LAB", "PRACTICAL");
 
   // Gazetted holidays + non-teaching days (cleared — no classes)
   const holidays = [

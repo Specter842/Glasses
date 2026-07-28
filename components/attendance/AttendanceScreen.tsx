@@ -1,8 +1,8 @@
 "use client";
 
 import { useData } from "../DataProvider";
-import { COURSE_TYPE_SHORT } from "@/lib/types";
-import { getCourses } from "@/lib/store";
+import { COURSE_TYPE_SHORT, type CourseType } from "@/lib/types";
+import { getCourses, getSlots } from "@/lib/store";
 import { pendingAttendance } from "@/lib/schedule";
 import { computeCourseAttendance, type CourseAttendance } from "@/lib/attendance";
 import { todayISO, formatDayLabel, formatTime } from "@/lib/time";
@@ -41,6 +41,22 @@ export function AttendanceScreen() {
   );
 
   const stats = courses.map((c) => computeCourseAttendance(c, db.instances));
+
+  // A course can combine Lecture/Tutorial/Practical slots under one
+  // attendance pool now — collect which session types it actually has so the
+  // card can show all of them, not just the course's own default type.
+  const slots = getSlots(db);
+  const TYPE_ORDER: CourseType[] = ["LECTURE", "TUTORIAL", "PRACTICAL"];
+  const typesByCourse = new Map<number, CourseType[]>();
+  for (const c of courses) {
+    const used = new Set(
+      slots.filter((s) => s.course_id === c.id).map((s) => s.type ?? c.type),
+    );
+    typesByCourse.set(
+      c.id,
+      used.size > 0 ? TYPE_ORDER.filter((t) => used.has(t)) : [c.type],
+    );
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -101,7 +117,11 @@ export function AttendanceScreen() {
         <h3 className="text-sm font-medium text-text-primary">By course</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {stats.map((s) => (
-            <CourseGaugeCard key={s.course.id} stat={s} />
+            <CourseGaugeCard
+              key={s.course.id}
+              stat={s}
+              types={typesByCourse.get(s.course.id) ?? [s.course.type]}
+            />
           ))}
         </div>
       </section>
@@ -109,7 +129,13 @@ export function AttendanceScreen() {
   );
 }
 
-function CourseGaugeCard({ stat }: { stat: CourseAttendance }) {
+function CourseGaugeCard({
+  stat,
+  types,
+}: {
+  stat: CourseAttendance;
+  types: CourseType[];
+}) {
   const tone: "safe" | "danger" | "none" = stat.noData
     ? "none"
     : stat.meets
@@ -142,8 +168,15 @@ function CourseGaugeCard({ stat }: { stat: CourseAttendance }) {
         <span className="truncate text-sm font-medium text-text-primary">
           {stat.course.name}
         </span>
-        <span className="ml-auto rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
-          {COURSE_TYPE_SHORT[stat.course.type]}
+        <span className="ml-auto flex shrink-0 gap-1">
+          {types.map((t) => (
+            <span
+              key={t}
+              className="rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-secondary"
+            >
+              {COURSE_TYPE_SHORT[t]}
+            </span>
+          ))}
         </span>
       </div>
 

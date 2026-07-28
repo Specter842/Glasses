@@ -164,12 +164,36 @@ further without asking. The one exception to "no Android permissions" is
   and resource status, attendance marking, delete timetable — all call store
   functions directly. There is no model, no chat box, and no network call
   anywhere in the app.
-- **Attendance is per course, not a weighted overall.** A course is one timetable
-  course code (so `UES101L` and `UES101P` are two courses). Each is judged against
-  its own `attendance_threshold_pct` (default 75). `held` = instances with status
-  ATTENDED or ABSENT; `attended` = ATTENDED; percentage = `attended / held`.
-  CANCELLED instances are excluded (a cleared day and a "class cancelled" mark
-  both set CANCELLED). Per-course safety-margin formulas are fixed once written.
+- **Attendance is per course, not a weighted overall.** A course is one subject —
+  its Lecture/Tutorial/Practical sessions share one attendance pool and one
+  `attendance_threshold_pct` (default 75), judged by `computeCourseAttendance`
+  which sums every `ClassInstance` with that `course_id` regardless of session
+  type. `held` = instances with status ATTENDED or ABSENT; `attended` = ATTENDED;
+  percentage = `attended / held`. CANCELLED instances are excluded (a cleared
+  day and a "class cancelled" mark both set CANCELLED). Per-course
+  safety-margin formulas are fixed once written.
+  - Session type (Lecture/Tutorial/Practical) lives on `TimetableSlot.type` /
+    `ClassInstance.type` — **not** on `Course.type` — specifically so one
+    course can combine multiple session types. `Course.type` still exists as
+    the default a new slot's type-picker starts from, and as the fallback
+    when a slot/instance has no explicit type (`slot.type ?? course.type`,
+    see `lib/schedule.ts`'s `toRendered`).
+  - `mergeDuplicateCourses` (called from `normalizeDB`, so it runs on every
+    load) merges any same-named courses within a semester into the
+    lowest-id one, reassigning their slots/instances and backfilling each
+    row's `type` from whichever course it came from. This is what lets
+    `applyOddSem2026Timetable` — and anything else that creates courses —
+    stay simple: create courses by name, don't worry about accidentally
+    creating two.
+- **Materialising a date is all-or-nothing.** `renderDays` treats "any
+  `ClassInstance` exists for this date" as authoritative and stops reading the
+  weekly template for it — so `markAttendance`, `clearSchedule`, and
+  `duplicateDay` all funnel through the shared `materialiseDay` helper, which
+  always creates instances for *every* slot on that day-of-week (not just the
+  one being touched) before setting statuses. Materialising only the single
+  occurrence being marked was a real bug: it made every other class that day
+  disappear until the whole day had been individually marked. If you touch
+  this path, keep that invariant.
 - **Custom calendar events never touch attendance.** `CalendarEvent` rows render
   alongside classes (dashed border, EVENT tag, no Attended/Absent controls), and
   clearing a day cancels its classes while leaving its events intact. Only the

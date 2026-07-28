@@ -1,13 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import type { Course, TimetableSlot } from "@/lib/types";
+import type { Course, CourseType, TimetableSlot } from "@/lib/types";
+import { COURSE_TYPE_LABELS } from "@/lib/types";
 import { useData } from "../DataProvider";
 import { addSlot, deleteSlot } from "@/lib/store";
 import { DAY_NAMES } from "@/lib/time";
 import { formatTime } from "@/lib/time";
 import { btn, cx, Card } from "../ui";
 import { Select } from "../Select";
+
+const TYPE_OPTIONS = (Object.keys(COURSE_TYPE_LABELS) as CourseType[]).map((t) => ({
+  value: t,
+  label: COURSE_TYPE_LABELS[t],
+}));
 
 export function SlotManager({
   courses,
@@ -22,8 +28,10 @@ export function SlotManager({
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [location, setLocation] = useState("");
+  const [type, setType] = useState<CourseType | "">("");
 
   const courseMap = new Map(courses.map((c) => [c.id, c]));
+  const selectedCourse = courseId === "" ? null : courseMap.get(Number(courseId));
 
   const submit = () => {
     if (courseId === "" || !startTime || !endTime) return;
@@ -33,6 +41,7 @@ export function SlotManager({
       startTime,
       endTime,
       location: location || null,
+      type: type || null,
     };
     setLocation("");
     mutate((d) => addSlot(d, payload));
@@ -63,6 +72,20 @@ export function SlotManager({
                 label: c.name,
                 color: c.color,
               }))}
+            />
+          </div>
+          <div className="flex min-w-[8rem] flex-col gap-1.5">
+            <span className="text-xs font-medium text-text-secondary">
+              Type
+            </span>
+            <Select
+              ariaLabel="Session type"
+              value={type}
+              onChange={(v) => setType(v as CourseType)}
+              placeholder={
+                selectedCourse ? COURSE_TYPE_LABELS[selectedCourse.type] : "Type"
+              }
+              options={TYPE_OPTIONS}
             />
           </div>
           <div className="flex min-w-[8rem] flex-col gap-1.5">
@@ -134,6 +157,7 @@ export function SlotManager({
                       slot={slot}
                       courseName={course?.name ?? "Unknown"}
                       color={course?.color ?? "#9A9A9A"}
+                      type={slot.type ?? course?.type ?? "LECTURE"}
                     />
                   );
                 })}
@@ -150,10 +174,12 @@ function SlotRow({
   slot,
   courseName,
   color,
+  type,
 }: {
   slot: TimetableSlot;
   courseName: string;
   color: string;
+  type: CourseType;
 }) {
   const { mutate } = useData();
   return (
@@ -162,7 +188,12 @@ function SlotRow({
       style={{ borderLeftColor: color }}
     >
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm text-text-primary">{courseName}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-sm text-text-primary">{courseName}</span>
+          <span className="shrink-0 rounded border border-border px-1 text-[9px] font-semibold uppercase tracking-wide text-text-secondary">
+            {COURSE_TYPE_LABELS[type]}
+          </span>
+        </div>
         <div className="font-mono text-[11px] text-text-secondary">
           {formatTime(slot.start_time)}–{formatTime(slot.end_time)}
           {slot.location ? ` · ${slot.location}` : ""}

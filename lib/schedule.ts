@@ -58,6 +58,7 @@ export function renderDays(db: DB, dates: string[]): RenderedDay[] {
           null,
           inst.status,
           inst.id,
+          inst.type,
         ),
       );
     } else if (override?.kind === "CLEARED") {
@@ -73,6 +74,7 @@ export function renderDays(db: DB, dates: string[]): RenderedDay[] {
           slot.location,
           "SCHEDULED",
           null,
+          slot.type,
         ),
       );
     }
@@ -126,12 +128,13 @@ function toRendered(
   location: string | null,
   status: RenderedClass["status"],
   instanceId: number | null,
+  sessionType?: RenderedClass["courseType"] | null,
 ): RenderedClass {
   return {
     instanceId,
     courseId,
     courseName: course?.name ?? "Unknown course",
-    courseType: course?.type ?? "LECTURE",
+    courseType: sessionType ?? course?.type ?? "LECTURE",
     color: course?.color ?? "#9A9A9A",
     date,
     startTime,

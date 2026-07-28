@@ -50,6 +50,11 @@ export interface TimetableSlot {
   start_time: string; // HH:MM (24h)
   end_time: string; // HH:MM (24h)
   location: string | null;
+  // Per-slot session type, overriding the parent course's `type` for display
+  // (the badge on the calendar). Lets one course (e.g. "Mechanics") combine a
+  // Lecture slot and a Tutorial slot under one attendance pool instead of
+  // splitting into two courses. Null/undefined falls back to course.type.
+  type?: CourseType | null;
 }
 
 export interface DateOverride {
@@ -66,6 +71,9 @@ export interface ClassInstance {
   start_time: string;
   end_time: string;
   status: ClassStatus;
+  // Copied from the source slot's `type` at materialisation time — see
+  // TimetableSlot.type. Null/undefined falls back to course.type.
+  type?: CourseType | null;
 }
 
 export interface Task {
