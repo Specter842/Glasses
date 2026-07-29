@@ -1,7 +1,7 @@
 "use client";
 
 import { useData } from "../DataProvider";
-import { COURSE_TYPE_SHORT, type CourseType } from "@/lib/types";
+import { COURSE_TYPE_SHORT } from "@/lib/types";
 import { getCourses, getSlots } from "@/lib/store";
 import { pendingAttendance } from "@/lib/schedule";
 import { computeCourseAttendance, type CourseAttendance } from "@/lib/attendance";
@@ -40,23 +40,8 @@ export function AttendanceScreen() {
       a.date < b.date ? 1 : a.date > b.date ? -1 : a.startTime.localeCompare(b.startTime),
   );
 
-  const stats = courses.map((c) => computeCourseAttendance(c, db.instances));
-
-  // A course can combine Lecture/Tutorial/Practical slots under one
-  // attendance pool now — collect which session types it actually has so the
-  // card can show all of them, not just the course's own default type.
   const slots = getSlots(db);
-  const TYPE_ORDER: CourseType[] = ["LECTURE", "TUTORIAL", "PRACTICAL"];
-  const typesByCourse = new Map<number, CourseType[]>();
-  for (const c of courses) {
-    const used = new Set(
-      slots.filter((s) => s.course_id === c.id).map((s) => s.type ?? c.type),
-    );
-    typesByCourse.set(
-      c.id,
-      used.size > 0 ? TYPE_ORDER.filter((t) => used.has(t)) : [c.type],
-    );
-  }
+  const stats = courses.map((c) => computeCourseAttendance(c, db.instances, slots));
 
   return (
     <div className="flex flex-col gap-8">
@@ -117,11 +102,7 @@ export function AttendanceScreen() {
         <h3 className="text-sm font-medium text-text-primary">By course</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {stats.map((s) => (
-            <CourseGaugeCard
-              key={s.course.id}
-              stat={s}
-              types={typesByCourse.get(s.course.id) ?? [s.course.type]}
-            />
+            <CourseGaugeCard key={s.course.id} stat={s} />
           ))}
         </div>
       </section>
@@ -129,24 +110,26 @@ export function AttendanceScreen() {
   );
 }
 
-function CourseGaugeCard({
-  stat,
-  types,
-}: {
-  stat: CourseAttendance;
-  types: CourseType[];
-}) {
+function CourseGaugeCard({ stat }: { stat: CourseAttendance }) {
   const tone: "safe" | "danger" | "none" = stat.noData
     ? "none"
     : stat.meets
       ? "safe"
       : "danger";
+  const multiType = stat.byType.length > 1;
 
   let bigValue = "—";
   let label = "no data";
   if (stat.noData) {
     bigValue = "—";
     label = "no classes yet";
+  } else if (multiType) {
+    // Weighted across types (e.g. Practical 50% / Lecture 25% / Tutorial
+    // 25%) — a single "can miss N more" doesn't mean the same thing per
+    // type, so the headline is just the blended percentage; the exact
+    // per-type margins are in the breakdown below.
+    bigValue = `${stat.pct?.toFixed(0) ?? "—"}%`;
+    label = stat.meets ? "on track" : "below threshold";
   } else if (stat.meets) {
     bigValue = stat.unlimited ? "∞" : String(stat.maxMoreSkippable);
     label = "can miss";
@@ -169,12 +152,13 @@ function CourseGaugeCard({
           {stat.course.name}
         </span>
         <span className="ml-auto flex shrink-0 gap-1">
-          {types.map((t) => (
+          {stat.byType.map((b) => (
             <span
-              key={t}
+              key={b.type}
               className="rounded border border-border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-secondary"
+              title={`${Math.round(b.weight * 100)}% weight`}
             >
-              {COURSE_TYPE_SHORT[t]}
+              {COURSE_TYPE_SHORT[b.type]}
             </span>
           ))}
         </span>
@@ -206,9 +190,34 @@ function CourseGaugeCard({
         <span className="text-text-secondary">min {stat.threshold}%</span>
       </div>
 
-      <p className="w-full text-center text-xs text-text-secondary">
-        {marginSentence(stat)}
-      </p>
+      {multiType ? (
+        <div className="flex w-full flex-col gap-1 border-t border-border pt-2">
+          {stat.byType.map((b) => (
+            <div
+              key={b.type}
+              className="flex items-center justify-between font-mono text-[11px] text-text-secondary"
+            >
+              <span className="uppercase tracking-wide">
+                {COURSE_TYPE_SHORT[b.type]} ({Math.round(b.weight * 100)}%)
+              </span>
+              <span>
+                {b.pct === null ? "no data" : `${b.attended}/${b.held} · ${b.pct.toFixed(0)}%`}
+              </span>
+              <span>
+                {b.maxMoreSkippable === null
+                  ? "—"
+                  : b.maxMoreSkippable === Infinity
+                    ? "can miss any"
+                    : `can miss ${b.maxMoreSkippable}`}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="w-full text-center text-xs text-text-secondary">
+          {marginSentence(stat)}
+        </p>
+      )}
     </Card>
   );
 }

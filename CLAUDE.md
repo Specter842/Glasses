@@ -185,6 +185,23 @@ further without asking. The one exception to "no Android permissions" is
     `applyOddSem2026Timetable` — and anything else that creates courses —
     stay simple: create courses by name, don't worry about accidentally
     creating two.
+  - **A course's overall % is a weighted average of each session type's own
+    ratio**, not a simple pooled count — Practical carries 50% weight,
+    Lecture and Tutorial 25% each (`lib/attendance.ts`'s `BASE_WEIGHTS`).
+    When a course is missing a type, that weight moves: missing
+    Tutorial/Practical → their weight moves to Lecture (Lecture can reach
+    100%, Practical never exceeds its base 50%); missing Lecture (Tutorial +
+    Practical only) → the two remaining weights renormalize proportionally
+    (keeping their 1:2 ratio) since there's no Lecture to absorb into; a
+    single-type course is just 100% that type. A type with zero classes
+    held yet is excluded from both the weighted numerator and the
+    denominator (`usedWeight`), so an untouched type doesn't drag the
+    number down before it's even started. Per-type skip margins
+    (`CourseAttendance.byType[].maxMoreSkippable`) are solved individually
+    against this formula, since skipping a Lecture and skipping a Practical
+    don't cost the same when their weights differ — `computeCourseAttendance`
+    now takes `slots` as well as `instances` because which types a course
+    "has" is read off `TimetableSlot`, not off what's been marked so far.
 - **Materialising a date is all-or-nothing.** `renderDays` treats "any
   `ClassInstance` exists for this date" as authoritative and stops reading the
   weekly template for it — so `markAttendance`, `clearSchedule`, and
@@ -198,6 +215,15 @@ further without asking. The one exception to "no Android permissions" is
   alongside classes (dashed border, EVENT tag, no Attended/Absent controls), and
   clearing a day cancels its classes while leaving its events intact. Only the
   timetable feeds the attendance denominator.
+- **`RecurringEvent`** is the weekly-recurring counterpart to `CalendarEvent` —
+  a personal timetable entry (club, standing commitment) with no course_id
+  and no attendance semantics, structurally a `TimetableSlot` without a
+  course. `renderDays` materialises one per matching `day_of_week` into
+  `RenderedDay.recurringEvents`, independent of date overrides (clearing a
+  day clears classes, not the personal timetable). Managed from Setup
+  (`RecurringEventManager`, mirrors `SlotManager`); rendered on the calendar
+  with a dashed border and RECURRING tag but no inline delete — edits go
+  through the weekly template, not a single occurrence.
 - **Each timetable grid cell is one class period.** Two consecutive cells of the
   same course are two slots, never merged — a day's attendance denominator is
   simply the number of periods on that day.

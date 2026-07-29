@@ -13,6 +13,7 @@ import type {
   Routine,
   RoutineItem,
   RoutineLog,
+  RecurringEvent,
   Account,
   Category,
   Transaction,
@@ -48,6 +49,7 @@ export interface DB {
   overrides: DateOverride[];
   instances: ClassInstance[];
   events: CalendarEvent[];
+  recurringEvents: RecurringEvent[];
   tasks: Task[];
   habits: Habit[];
   habitLogs: HabitLog[];
@@ -75,6 +77,7 @@ export function emptyDB(): DB {
     overrides: [],
     instances: [],
     events: [],
+    recurringEvents: [],
     tasks: [],
     habits: [],
     habitLogs: [],
@@ -274,6 +277,7 @@ export function normalizeDB(input: unknown): DB {
     instances: d.instances ?? [],
     // Added later; older saved documents won't have these.
     events: d.events ?? [],
+    recurringEvents: d.recurringEvents ?? [],
     tasks,
     habits: d.habits ?? [],
     habitLogs: d.habitLogs ?? [],
@@ -1050,6 +1054,55 @@ export function addEvent(
 
 export function deleteEvent(db: DB, id: number) {
   db.events = db.events.filter((e) => e.id !== id);
+}
+
+// ---- Recurring (non-course) events ----
+//
+// A personal weekly timetable entry — a club meeting, a standing commitment —
+// that isn't a Course and carries no attendance semantics. Structurally a
+// TimetableSlot without a course_id; renderDays materialises one per matching
+// day_of_week into RenderedDay.recurringEvents.
+
+export function getRecurringEvents(db: DB): RecurringEvent[] {
+  return [...db.recurringEvents].sort(
+    (a, b) =>
+      a.day_of_week - b.day_of_week ||
+      (a.start_time ?? "").localeCompare(b.start_time ?? ""),
+  );
+}
+
+export function getRecurringEventsForDay(db: DB, dow: number): RecurringEvent[] {
+  return db.recurringEvents
+    .filter((e) => e.day_of_week === dow)
+    .sort((a, b) => (a.start_time ?? "").localeCompare(b.start_time ?? ""));
+}
+
+export function addRecurringEvent(
+  db: DB,
+  input: {
+    title: string;
+    dayOfWeek: number;
+    startTime?: string | null;
+    endTime?: string | null;
+    note?: string | null;
+    color: string;
+  },
+) {
+  const title = input.title.trim();
+  if (!title) return;
+  db.recurringEvents.push({
+    id: nextId(db),
+    title,
+    day_of_week: input.dayOfWeek,
+    start_time: input.startTime || null,
+    end_time: input.endTime || null,
+    note: input.note?.trim() || null,
+    color: input.color,
+  });
+}
+
+export function deleteRecurringEvent(db: DB, id: number) {
+  db.recurringEvents = db.recurringEvents.filter((e) => e.id !== id);
 }
 
 // ---- Finance: accounts, categories, transactions ----

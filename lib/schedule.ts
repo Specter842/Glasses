@@ -1,5 +1,11 @@
 import type { RenderedClass, RenderedDay, Course } from "./types";
-import { type DB, getCourseMap, getSlotsForDay, getEventsForDate } from "./store";
+import {
+  type DB,
+  getCourseMap,
+  getSlotsForDay,
+  getEventsForDate,
+  getRecurringEventsForDay,
+} from "./store";
 import { dayOfWeek, timeToMinutes, addDays } from "./time";
 
 // Turn the recurring TimetableSlot template + any DateOverrides + any
@@ -28,6 +34,7 @@ export function renderDays(db: DB, dates: string[]): RenderedDay[] {
       copiedFromDayOfWeek: null,
       classes: [],
       events: getEventsForDate(db, date),
+      recurringEvents: getRecurringEventsForDay(db, dayOfWeek(date)),
     }));
   }
 
@@ -93,6 +100,9 @@ export function renderDays(db: DB, dates: string[]): RenderedDay[] {
       // Custom events sit alongside classes but never affect attendance —
       // clearing a day cancels classes, not events.
       events: getEventsForDate(db, date),
+      // Recurring (non-course) events always render, independent of
+      // overrides — clearing a day clears classes, not the personal timetable.
+      recurringEvents: getRecurringEventsForDay(db, dow),
     };
   });
 }

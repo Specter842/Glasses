@@ -1,6 +1,6 @@
 "use client";
 
-import type { RenderedDay, CalendarEvent } from "@/lib/types";
+import type { RenderedDay, CalendarEvent, RecurringEvent } from "@/lib/types";
 import { COURSE_TYPE_SHORT } from "@/lib/types";
 import { useData } from "../DataProvider";
 import { deleteEvent } from "@/lib/store";
@@ -58,11 +58,13 @@ export function DayColumn({
           </div>
         )}
 
-        {day.classes.length === 0 && day.events.length === 0 && (
-          <div className="flex flex-1 items-center justify-center px-2 py-4 text-center text-xs text-text-secondary">
-            {day.cleared ? "Cleared" : "Nothing on"}
-          </div>
-        )}
+        {day.classes.length === 0 &&
+          day.events.length === 0 &&
+          day.recurringEvents.length === 0 && (
+            <div className="flex flex-1 items-center justify-center px-2 py-4 text-center text-xs text-text-secondary">
+              {day.cleared ? "Cleared" : "Nothing on"}
+            </div>
+          )}
 
         {day.classes.length > 0 &&
           day.classes.map((c, i) => {
@@ -133,6 +135,10 @@ export function DayColumn({
         {day.events.map((e) => (
           <EventRow key={e.id} event={e} compact={compact} />
         ))}
+
+        {day.recurringEvents.map((e) => (
+          <RecurringEventRow key={e.id} event={e} compact={compact} />
+        ))}
       </div>
 
       <div className="border-t border-border px-2 py-1.5">
@@ -187,6 +193,50 @@ function EventRow({
             ✕
           </button>
         </div>
+      </div>
+      <div className="mt-0.5 font-mono text-[11px] text-text-secondary">
+        {timeLabel}
+      </div>
+      {event.note && !compact && (
+        <div className="truncate text-[11px] text-text-secondary/70">
+          {event.note}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A personal weekly-recurring entry — a club meeting, a standing
+ * commitment — not a course, so no attendance controls. Managed from Setup
+ * (the weekly template), not per-occurrence here, so there's no inline
+ * delete — editing the template changes every future week at once.
+ */
+function RecurringEventRow({
+  event,
+  compact,
+}: {
+  event: RecurringEvent;
+  compact?: boolean;
+}) {
+  const timeLabel = event.start_time
+    ? event.end_time
+      ? `${formatTime(event.start_time)}–${formatTime(event.end_time)}`
+      : formatTime(event.start_time)
+    : "All day";
+
+  return (
+    <div
+      className="rounded border-l-2 border-dashed bg-bg px-2 py-1.5"
+      style={{ borderLeftColor: event.color }}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate text-sm font-medium text-text-primary">
+          {event.title}
+        </span>
+        <span className="shrink-0 rounded border border-border px-1 text-[9px] font-semibold uppercase tracking-wide text-text-secondary">
+          Recurring
+        </span>
       </div>
       <div className="mt-0.5 font-mono text-[11px] text-text-secondary">
         {timeLabel}

@@ -272,4 +272,19 @@ export interface RenderedDay {
   copiedFromDayOfWeek: number | null;
   classes: RenderedClass[];
   events: CalendarEvent[];
+  recurringEvents: RecurringEvent[];
+}
+
+/** A personal weekly-recurring calendar entry that isn't a course — a club
+ *  meeting, a standing commitment, anything that belongs on the timetable
+ *  without attendance tracking. Renders every week on `day_of_week`, same as
+ *  a TimetableSlot but with no course/attendance semantics. */
+export interface RecurringEvent {
+  id: number;
+  title: string;
+  day_of_week: number; // 0 = Sunday .. 6 = Saturday
+  start_time: string | null; // HH:MM, null = all-day
+  end_time: string | null;
+  note: string | null;
+  color: string;
 }

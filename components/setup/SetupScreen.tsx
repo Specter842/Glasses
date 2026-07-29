@@ -1,7 +1,7 @@
 "use client";
 
 import { useData } from "../DataProvider";
-import { getCourses, getSlots } from "@/lib/store";
+import { getCourses, getSlots, getRecurringEvents } from "@/lib/store";
 import { SectionTitle } from "../ui";
 import { SemesterForm } from "./SemesterForm";
 import { CourseManager } from "./CourseManager";
@@ -9,6 +9,7 @@ import { SlotManager } from "./SlotManager";
 import { ImportTimetable } from "./ImportTimetable";
 import { ImportHolidays } from "./ImportHolidays";
 import { LoadOddSem2026 } from "./LoadOddSem2026";
+import { RecurringEventManager } from "./RecurringEventManager";
 import { DeleteTimetable } from "./DeleteTimetable";
 import { CurrencyForm } from "./CurrencyForm";
 
@@ -67,6 +68,15 @@ export function SetupScreen() {
       <section className="flex flex-col gap-4">
         <SectionTitle>Holidays</SectionTitle>
         <ImportHolidays />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <SectionTitle>Recurring events</SectionTitle>
+        <p className="text-sm text-text-secondary">
+          Clubs, standing commitments — anything that repeats weekly on your
+          timetable but isn't a course (no attendance tracking).
+        </p>
+        <RecurringEventManager events={getRecurringEvents(db)} />
       </section>
 
       {hasTimetable && (
