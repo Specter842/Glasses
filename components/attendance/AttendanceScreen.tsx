@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useData } from "../DataProvider";
 import { COURSE_TYPE_SHORT } from "@/lib/types";
 import { getCourses, getSlots } from "@/lib/store";
@@ -8,11 +9,13 @@ import { computeCourseAttendance, type CourseAttendance } from "@/lib/attendance
 import { todayISO, formatDayLabel, formatTime } from "@/lib/time";
 import { Gauge } from "./Gauge";
 import { AttendanceMark } from "./AttendanceMark";
+import { CourseAttendanceCalendar } from "./CourseAttendanceCalendar";
 import { SectionTitle, Card, cx } from "../ui";
 import Link from "next/link";
 
 export function AttendanceScreen() {
   const { db, ready } = useData();
+  const [openCourseId, setOpenCourseId] = useState<number | null>(null);
 
   if (!ready) {
     return (
@@ -102,15 +105,36 @@ export function AttendanceScreen() {
         <h3 className="text-sm font-medium text-text-primary">By course</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {stats.map((s) => (
-            <CourseGaugeCard key={s.course.id} stat={s} />
+            <CourseGaugeCard
+              key={s.course.id}
+              stat={s}
+              onOpen={() => setOpenCourseId(s.course.id)}
+            />
           ))}
         </div>
       </section>
+
+      {openCourseId !== null &&
+        (() => {
+          const course = courses.find((c) => c.id === openCourseId);
+          return course ? (
+            <CourseAttendanceCalendar
+              course={course}
+              onClose={() => setOpenCourseId(null)}
+            />
+          ) : null;
+        })()}
     </div>
   );
 }
 
-function CourseGaugeCard({ stat }: { stat: CourseAttendance }) {
+function CourseGaugeCard({
+  stat,
+  onOpen,
+}: {
+  stat: CourseAttendance;
+  onOpen: () => void;
+}) {
   const tone: "safe" | "danger" | "none" = stat.noData
     ? "none"
     : stat.meets
@@ -142,7 +166,18 @@ function CourseGaugeCard({ stat }: { stat: CourseAttendance }) {
   }
 
   return (
-    <Card className="flex flex-col items-center gap-2 p-4">
+    <Card
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className="flex cursor-pointer flex-col items-center gap-2 p-4 transition-colors hover:border-text-secondary"
+    >
       <div className="flex w-full items-center gap-2">
         <span
           className="h-3 w-3 shrink-0 rounded-full"

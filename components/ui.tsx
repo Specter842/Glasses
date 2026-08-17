@@ -21,7 +21,8 @@ export function cx(...args: Parameters<typeof clsx>) {
 export function Card({
   children,
   className,
-}: {
+  ...rest
+}: React.HTMLAttributes<HTMLDivElement> & {
   children: React.ReactNode;
   className?: string;
 }) {
@@ -31,6 +32,7 @@ export function Card({
         "rounded-lg border border-border bg-surface",
         className,
       )}
+      {...rest}
     >
       {children}
     </div>
