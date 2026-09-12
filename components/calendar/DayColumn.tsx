@@ -71,11 +71,17 @@ export function DayColumn({
             const cancelled = c.status === "CANCELLED";
             const attended = c.status === "ATTENDED";
             const absent = c.status === "ABSENT";
+            // instanceId is set once a ClassInstance row exists for this
+            // occurrence (attended/absent/cancelled, or materialised as
+            // still-scheduled) — null means it's still a virtual render
+            // straight off the recurring weekly template, untouched.
+            const materialised = c.instanceId !== null;
             return (
               <div
                 key={c.instanceId ?? `t-${i}`}
                 className={cx(
                   "rounded border-l-2 bg-bg px-2 py-1.5",
+                  materialised && "border border-white/70",
                   cancelled && "opacity-45",
                 )}
                 style={{ borderLeftColor: cancelled ? "#242424" : c.color }}
@@ -110,8 +116,8 @@ export function DayColumn({
                 >
                   {formatTime(c.startTime)}–{formatTime(c.endTime)}
                 </div>
-                {c.location && !compact && (
-                  <div className="font-mono text-[11px] text-text-secondary/70">
+                {c.location && (
+                  <div className="truncate font-mono text-[11px] text-text-secondary/70">
                     {c.location}
                   </div>
                 )}

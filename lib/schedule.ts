@@ -46,6 +46,12 @@ export function renderDays(db: DB, dates: string[]): RenderedDay[] {
     list.push(inst);
     instancesByDate.set(inst.date, list);
   }
+  // Instances persisted before ClassInstance.location existed have no
+  // location of their own — fall back to whatever slot currently matches
+  // that course/day-of-week/start-time.
+  const slotByKey = new Map(
+    db.slots.map((s) => [`${s.course_id}|${s.day_of_week}|${s.start_time}`, s]),
+  );
 
   return dates.map((date) => {
     const dow = dayOfWeek(date);
@@ -55,19 +61,22 @@ export function renderDays(db: DB, dates: string[]): RenderedDay[] {
     let classes: RenderedClass[];
 
     if (dayInstances.length > 0) {
-      classes = dayInstances.map((inst) =>
-        toRendered(
+      classes = dayInstances.map((inst) => {
+        const fallbackSlot = slotByKey.get(
+          `${inst.course_id}|${dow}|${inst.start_time}`,
+        );
+        return toRendered(
           courses.get(inst.course_id),
           inst.course_id,
           date,
           inst.start_time,
           inst.end_time,
-          null,
+          inst.location ?? fallbackSlot?.location ?? null,
           inst.status,
           inst.id,
           inst.type,
-        ),
-      );
+        );
+      });
     } else if (override?.kind === "CLEARED") {
       classes = [];
     } else {

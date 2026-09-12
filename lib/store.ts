@@ -436,6 +436,7 @@ function materialiseDay(
       end_time: slot.end_time,
       status,
       type: slot.type ?? null,
+      location: slot.location,
     });
   }
 }
@@ -503,6 +504,12 @@ export function markAttendance(
   if (existing) {
     existing.status = status;
   } else {
+    const slot = db.slots.find(
+      (s) =>
+        s.course_id === occ.courseId &&
+        s.day_of_week === dayOfWeek(occ.date) &&
+        s.start_time === occ.startTime,
+    );
     db.instances.push({
       id: nextId(db),
       course_id: occ.courseId,
@@ -510,6 +517,8 @@ export function markAttendance(
       start_time: occ.startTime,
       end_time: occ.endTime,
       status,
+      type: slot?.type ?? null,
+      location: slot?.location,
     });
   }
 }
