@@ -74,6 +74,10 @@ export interface ClassInstance {
   // Copied from the source slot's `type` at materialisation time — see
   // TimetableSlot.type. Null/undefined falls back to course.type.
   type?: CourseType | null;
+  // Copied from the source slot's `location` at materialisation time.
+  // Undefined (instances persisted before this field existed) falls back to
+  // whatever slot currently matches this course/day/time in renderDays.
+  location?: string | null;
 }
 
 export interface Task {
